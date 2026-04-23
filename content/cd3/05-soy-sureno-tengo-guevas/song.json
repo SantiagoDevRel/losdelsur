@@ -1,0 +1,11 @@
+{
+  "id": "cd3-05",
+  "numero": 5,
+  "titulo": "Soy sureño tengo güevas",
+  "slug": "cd3-soy-sureno-tengo-guevas",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": 97,
+  "favorita": true,
+  "duracion": "1:37"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "cd2-13",
+  "numero": 13,
+  "titulo": "Intro",
+  "slug": "cd2-intro",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": null
+}

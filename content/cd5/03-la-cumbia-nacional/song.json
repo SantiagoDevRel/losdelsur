@@ -1,0 +1,11 @@
+{
+  "id": "cd5-03",
+  "numero": 3,
+  "titulo": "La cumbia Nacional",
+  "slug": "cd5-la-cumbia-nacional",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": 205,
+  "favorita": true,
+  "duracion": "3:25"
+}

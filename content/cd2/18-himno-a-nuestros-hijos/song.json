@@ -1,0 +1,11 @@
+{
+  "id": "cd2-18",
+  "numero": 18,
+  "titulo": "Himno a nuestros hijos",
+  "slug": "cd2-himno-a-nuestros-hijos",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": 84,
+  "favorita": true,
+  "duracion": "1:24"
+}

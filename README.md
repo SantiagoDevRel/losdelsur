@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# La Banda Los Del Sur
 
-## Getting Started
+PWA de cánticos de la barra Los Del Sur con letras y audio offline.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4 + shadcn/ui
+- Fuse.js para búsqueda fuzzy
+- Serwist (`@serwist/next`) para Service Worker / PWA
+- Contenido JSON estático, audio servido desde `/public/audio/`
+
+> Nota: `create-next-app@latest` instaló Next 16.2 (no 15, ya está vieja).
+> Serwist requiere webpack, así que los scripts `dev` y `build` usan
+> `--webpack` explícitamente (Next 16 defaultea a Turbopack).
+
+## Comandos
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev                          # dev server (webpack) en :3000
+npm run build                        # corre sync-audio y buildea para prod
+npm run sync-audio                   # manual: refrescar public/audio/ desde content/
+python scripts/recompress-audio.py   # re-encodea audio.mp3 → audio.m4a (AAC 64k mono)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Estructura del contenido
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+content/
+  cdN/
+    cd.json                    # metadata del CD
+    <cover>.jpg                # portada (→ public/covers/cdN.jpg)
+    NN-slug/
+      song.json                # metadata de la canción
+      letra.md                 # letra en markdown
+      letra.lrc                # letra con timestamps (opcional, modo karaoke)
+      audio.m4a                # AAC 64 kbps mono (~1.5 MB por canción)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`sync-audio.ts` copia cada `content/cdN/NN-slug/audio.m4a` a
+`public/audio/cdN/NN-slug.m4a` y la portada del CD a `public/covers/cdN.jpg`.
 
-## Learn More
+## Performance
 
-To learn more about Next.js, take a look at the following resources:
+- **Audio AAC 64k mono (.m4a)** en vez de MP3 117k stereo: ~50% menos
+  bytes por canción sin pérdida perceptible para cánticos. 80 canciones
+  ≈ 114 MB (antes 216 MB).
+- **AudioPlayer context split**: `useAudioPlayer()` expone estado
+  discreto (track, play/pause, modes). `useAudioTime()` expone el
+  `currentTime` que cambia ~4×/seg. Los consumers que no muestran el
+  tiempo (cover, título, controles) no re-renderizan en cada timeupdate.
+- **Cache offline**: cada canción descargada vive en el cache
+  `lds-audio-v1`. La pantalla `/settings` muestra cuántas canciones hay
+  y cuánto pesan, con botón para borrar todo.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`npm run build && vercel --prod` — sync-audio corre en prebuild y
+popula `public/audio/` desde `content/`.

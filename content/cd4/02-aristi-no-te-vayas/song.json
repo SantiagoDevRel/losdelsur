@@ -1,0 +1,11 @@
+{
+  "id": "cd4-02",
+  "numero": 2,
+  "titulo": "Aristi no te vayas",
+  "slug": "cd4-aristi-no-te-vayas",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": 273,
+  "favorita": true,
+  "duracion": "4:33"
+}

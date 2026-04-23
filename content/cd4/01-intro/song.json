@@ -1,0 +1,9 @@
+{
+  "id": "cd4-01",
+  "numero": 1,
+  "titulo": "Intro",
+  "slug": "cd4-intro",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": null
+}

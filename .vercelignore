@@ -1,0 +1,7 @@
+# Excluir archivos de origen que no se necesitan en el deploy.
+# El build sí necesita content/ (lib/content.ts lo lee) y public/ (SW + audio + covers).
+content/los_del_sur_playlist.xlsx
+content/logo*.jpg
+content/logo*.png
+.next/cache
+

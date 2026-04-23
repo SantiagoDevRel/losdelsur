@@ -1,26 +1,237 @@
-@import "tailwindcss";
+/* app/globals.css
+ * Theme "rudo" (stencil/graffiti) del cancionero Los Del Sur.
+ * Design tokens tomados directamente del handoff de Claude Design:
+ * neon verde, negro profundo, tipografías Anton / Barlow Condensed /
+ * Bebas Neue / Permanent Marker, radios en 0 (cortes rectos).
+ *
+ * Las fuentes se importan desde Google Fonts. Una vez instalada la
+ * PWA, quedan cacheadas por el Service Worker y siguen funcionando
+ * offline.
+ */
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Fonts: auto-hosteadas por next/font desde app/layout.tsx — no
+   hacemos @import de Google Fonts para evitar el round-trip y el
+   FOUT. Los CSS variables --font-display, --font-body, etc. los
+   define el layout al inicializar next/font. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Colores del handoff */
+  --color-verde: #0a7d3e;
+  --color-verde-bright: #17b85e;
+  --color-verde-dark: #053a1d;
+  --color-verde-neon: #2bff7f;
+  --color-negro: #0a0a0a;
+  --color-negro-deep: #000000;
+  --color-blanco: #f5f5f2;
+  --color-gris: #8a8a85;
+
+  /* Fuentes — las variables --font-display, --font-body, --font-bebas
+     y --font-marker las define next/font en el <html>. Tailwind las
+     toma desde el theme para `font-*` classes. */
+
+  /* Mapeo a tokens de shadcn (para que Button, Badge, etc. hereden
+     el look rudo cuando se usen). */
+  --color-background: var(--color-negro-deep);
+  --color-foreground: var(--color-blanco);
+  --color-card: #0a0a0a;
+  --color-card-foreground: var(--color-blanco);
+  --color-popover: #0a0a0a;
+  --color-popover-foreground: var(--color-blanco);
+  --color-primary: var(--color-verde-neon);
+  --color-primary-foreground: #000000;
+  --color-secondary: #1a1a1a;
+  --color-secondary-foreground: var(--color-blanco);
+  --color-muted: #1a1a1a;
+  --color-muted-foreground: #a8a8a3;
+  --color-accent: var(--color-verde-bright);
+  --color-accent-foreground: #000000;
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-input: rgba(255, 255, 255, 0.12);
+  --color-ring: var(--color-verde-neon);
+  /* Bordes: suaves pero no exagerados. Mantiene la onda rudo pero
+     con un pelín de aire moderno. Botones con clip-path (chaflán)
+     conservan sus cortes rectos. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Reset + optimizaciones mobile. */
+* {
+  box-sizing: border-box;
+  /* Elimina el delay de ~300ms antes del tap en mobile Safari y
+     quita el "flash" que Android pone al tocar algo. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: #000;
+  color: var(--color-blanco);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  /* iOS al rotar el device a veces infla el texto — esto lo previene. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Evita que un overscroll pase a la página de arriba (iOS PWA). */
+  overscroll-behavior-y: contain;
+}
+
+/* Los botones y links son tap targets — eliminamos los gestos
+   browser-default que compiten (double-tap zoom, etc.). */
+button,
+a[href],
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Respeta la preferencia del sistema "Reducir movimiento" (iOS/
+   Android aceptan este setting para usuarios con motion sickness). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Scroll interno con momentum (iOS) y suave para anchors. */
+html {
+  scroll-behavior: smooth;
+}
+
+/* =========================================================
+   View Transitions API — crossfade automático entre páginas.
+   Soportado por Chrome/Edge 111+ y Safari 18+. En browsers
+   viejos se ignora silenciosamente (fallback: pop normal).
+   ========================================================= */
+@view-transition {
+  navigation: auto;
+}
+
+/* Ajuste fino del fade: un pelín más rápido que el default. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =========================================================
+   Tap feedback — el "aplaste" sutil al tocar botones y
+   cards, como las native apps. Se aplica al mismo tiempo
+   que active:/:active en Tailwind.
+   ========================================================= */
+button,
+a[href],
+[role="button"] {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+button:active,
+a[href]:active,
+[role="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Utilidades tipográficas copiadas del handoff. */
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 0.92;
+}
+.cond {
+  font-family: var(--font-body);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.marker {
+  font-family: var(--font-marker);
+}
+.eyebrow {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-verde-neon);
+}
+
+/* Botón "clip-path" del diseño: ligero chaflán en las esquinas. */
+.btn-primary-rudo {
+  background: var(--color-verde-neon);
+  color: #000;
+  font-family: var(--font-body);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 16px 22px;
+  font-size: 14px;
+  clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%);
+  transition: transform 0.12s ease;
+}
+.btn-primary-rudo:active {
+  transform: scale(0.97);
+}
+.btn-primary-rudo:hover {
+  background: #3dff91;
+}
+
+.btn-black {
+  background: #000;
+  color: var(--color-blanco);
+  border: 2px solid var(--color-blanco);
+  font-family: var(--font-body);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 14px 22px;
+  font-size: 14px;
+}
+
+.btn-ghost-rudo {
+  background: transparent;
+  color: var(--color-blanco);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  font-family: var(--font-body);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 10px 14px;
+  font-size: 11px;
+}
+
+/* Scrollbars fantasma. */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Fondo ambient con tinte verde + oscurecido (reemplazo liviano del
+   video del handoff — se usa en pantallas secundarias). */
+.ambient-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 60%, rgba(10, 125, 62, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, #000 0%, #050a07 50%, #000 100%);
+}
+
+/* Rayas diagonales decorativas (re-utilizado en CD cover y badges). */
+.diag-stripe {
+  background: repeating-linear-gradient(-45deg, var(--color-verde-neon) 0 4px, #000 4px 10px);
 }

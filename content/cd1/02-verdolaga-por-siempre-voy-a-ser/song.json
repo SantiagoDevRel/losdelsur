@@ -1,0 +1,11 @@
+{
+  "id": "cd1-02",
+  "numero": 2,
+  "titulo": "Verdolaga por siempre voy a ser",
+  "slug": "cd1-verdolaga-por-siempre-voy-a-ser",
+  "audio_file": "audio.mp3",
+  "letra_file": "letra.md",
+  "duracion_segundos": 130,
+  "favorita": true,
+  "duracion": "2:10"
+}

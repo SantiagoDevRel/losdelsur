@@ -39,3 +39,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+
+# Generados por scripts/sync-audio.ts desde content/ en el prebuild.
+# La fuente de verdad vive en content/ — estos son solo copias.
+/public/audio/
+/public/covers/
+
+# Service Worker generado por Serwist en build — no commitear.
+/public/sw.js
+/public/swe-worker-*.js
+
+# Python / scripts
+__pycache__/
+*.pyc
+
+# Design handoff — assets source (no deployeados)
+/public/design-assets/
