@@ -24,10 +24,10 @@ const config: CapacitorConfig = {
   // Wrapper de la PWA deployada a Vercel. Si cambiás de dominio,
   // actualizá acá + en la allowNavigation.
   server: {
-    url: "https://los-del-sur-app.vercel.app",
+    url: "https://losdelsur.vercel.app",
     cleartext: false,
     allowNavigation: [
-      "los-del-sur-app.vercel.app",
+      "losdelsur.vercel.app",
       "*.supabase.co", // OAuth callback de Google + email magic link
       "accounts.google.com", // Google sign-in flow
     ],

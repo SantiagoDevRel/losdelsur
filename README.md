@@ -103,7 +103,7 @@ popula `public/audio/` desde `content/`.
 ## App Android (Capacitor)
 
 `capacitor.config.ts` envuelve la PWA — el APK es un WebView thin que carga
-`los-del-sur-app.vercel.app`. Ver [`docs/ANDROID.md`](docs/ANDROID.md) para
+`losdelsur.vercel.app`. Ver [`docs/ANDROID.md`](docs/ANDROID.md) para
 instrucciones de build con Android Studio.
 
 ```bash

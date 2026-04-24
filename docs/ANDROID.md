@@ -4,7 +4,7 @@ Estado: **proyecto Capacitor creado**, listo para build del APK con Android Stud
 
 ## Estructura
 
-- `capacitor.config.ts` — config del wrapper; apunta a `https://los-del-sur-app.vercel.app` como `server.url`.
+- `capacitor.config.ts` — config del wrapper; apunta a `https://losdelsur.vercel.app` como `server.url`.
 - `android/` — proyecto Gradle nativo generado por Capacitor. Se commitea.
 - El APK es un thin WebView que carga la PWA desde Vercel. No build del front local.
 
