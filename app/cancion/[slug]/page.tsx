@@ -10,6 +10,7 @@
 // esta página queda como server component que resuelve el slug y
 // bootstrappea datos al cliente.
 
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getAllCanciones, getCancionBySlug } from "@/lib/content";
 import { SongView } from "./song-view";
@@ -44,7 +45,12 @@ export default async function CancionPage({ params }: PageProps) {
 
   return (
     <SwipeBack fallbackHref={`/cds/${hit.cd.id}`}>
-      <SongView cancion={hit.cancion} cd={hit.cd} numero={numero} />
+      {/* Suspense necesario porque SongView usa useSearchParams() para
+          los deep links `?t=`. Sin el boundary, Next de-optea la página
+          entera a render dinámico al prerenderizar. */}
+      <Suspense fallback={null}>
+        <SongView cancion={hit.cancion} cd={hit.cd} numero={numero} />
+      </Suspense>
     </SwipeBack>
   );
 }

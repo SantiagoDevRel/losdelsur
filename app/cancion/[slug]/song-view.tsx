@@ -6,7 +6,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronsLeft, ChevronsRight, Download, Loader2, Pause, Play, Repeat, Share2, Shuffle, Star } from "lucide-react";
 import type { CD, Cancion } from "@/lib/types";
 import { CDCover } from "@/components/cd-cover";
@@ -14,6 +15,7 @@ import { LyricsSynced } from "@/components/lyrics-synced";
 import { SwipeTracks } from "@/components/swipe-tracks";
 import { downloadAudio, isAudioCached } from "@/lib/download";
 import { haptic } from "@/lib/haptic";
+import { emit } from "@/lib/user-sync";
 import { useAudioPlayer, useAudioTime } from "@/components/audio-player-provider";
 
 function formatTime(s: number): string {
@@ -116,6 +118,27 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
     loadAndPlay(cancion, cd);
   }, [cancion, cd, loadAndPlay]);
 
+  // Deep link `?t=45` → al llegar a la canción por link compartido,
+  // saltar al segundo indicado. Esperamos al primer duration > 0 para
+  // no seekear antes de que el audio tenga metadata, y solo aplicamos
+  // una vez por slug (no cada vez que el usuario scrubea).
+  const searchParams = useSearchParams();
+  const appliedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    const t = searchParams.get("t");
+    if (!t) return;
+    const target = parseFloat(t);
+    if (!isFinite(target) || target < 0) return;
+    // Clave única por slug+t para aplicar una sola vez por canción.
+    const key = `${cancion.slug}:${target}`;
+    if (appliedDeepLinkRef.current === key) return;
+    // Si duration todavía no llegó, no seekear aún — el effect correrá
+    // de nuevo cuando duration cambie.
+    if (!duration || duration <= 0) return;
+    seek(Math.min(target, duration));
+    appliedDeepLinkRef.current = key;
+  }, [searchParams, duration, seek, cancion.slug]);
+
   // Hidratar estado desde storage + Cache API al montar.
   useEffect(() => {
     const favs = readFavs();
@@ -146,6 +169,8 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
       if (next) favs.add(cancion.id);
       else favs.delete(cancion.id);
       writeFavs(favs);
+      // Sync a Supabase (si el user está logueado, SyncManager lo sube).
+      emit("lds:favorite", { cancionId: cancion.id, isFavorite: next });
       return next;
     });
   }, [cancion.id]);
@@ -158,6 +183,7 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
       } catch {
         /* ignore */
       }
+      emit("lds:font-size", { fontSize: next });
       return next;
     });
   }, []);
@@ -173,6 +199,8 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
       });
       haptic("double");
       setIsDownloaded(true);
+      // Sync descarga a Supabase (para biblioteca cross-device).
+      emit("lds:download", { cancionId: cancion.id });
     } catch (err) {
       console.error("[download]", err);
       haptic("error");
@@ -231,16 +259,26 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
     typeof navigator !== "undefined" && typeof navigator.share === "function";
   const onShare = useCallback(async () => {
     if (!sharable) return;
+    // Si el usuario está pausado en un momento concreto (>5s para que no
+    // sea el "arranque por default"), compartimos con `?t=` para que
+    // quien abra el link caiga en ese mismo segundo. Si está reproduciendo
+    // o está en el principio, compartimos sin timestamp.
+    let shareUrl = typeof window !== "undefined" ? window.location.href : undefined;
+    if (typeof window !== "undefined" && !isPlaying && currentTime > 5) {
+      const u = new URL(window.location.href);
+      u.searchParams.set("t", String(Math.floor(currentTime)));
+      shareUrl = u.toString();
+    }
     try {
       await navigator.share({
         title: cancion.titulo,
         text: `${cancion.titulo} — La Banda Los Del Sur`,
-        url: typeof window !== "undefined" ? window.location.href : undefined,
+        url: shareUrl,
       });
     } catch {
       /* usuario canceló */
     }
-  }, [cancion.titulo, sharable]);
+  }, [cancion.titulo, sharable, isPlaying, currentTime]);
 
   return (
     <main className="relative min-h-dvh">

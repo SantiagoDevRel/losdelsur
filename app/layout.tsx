@@ -16,6 +16,9 @@ import { TabBar } from "@/components/tab-bar";
 import { AmbientVideo } from "@/components/ambient-video";
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { GlobalMiniPlayer } from "@/components/global-mini-player";
+import { UserProvider } from "@/components/user-provider";
+import { RegisterGate } from "@/components/register-gate";
+import { SyncManager } from "@/components/sync-manager";
 import { getAllCDs } from "@/lib/content";
 
 // Fuentes auto-hosteadas: Next las descarga en build y las sirve
@@ -105,17 +108,25 @@ export default function RootLayout({
         />
         {/* Ambient video del humo de la tribuna en todas las pantallas. */}
         <AmbientVideo />
-        {/* AudioPlayerProvider envuelve TODO: el <audio> vive dentro,
-            persiste entre cambios de ruta. La Media Session API se
-            conecta ahí para background playback en iOS/Android. */}
-        <AudioPlayerProvider catalog={catalog}>
-          {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
-              (que está en z-0). El <html> tiene fondo negro como fallback. */}
-          <div className="relative z-10">{children}</div>
-          <GlobalMiniPlayer />
-          <TabBar />
-          <InstallPrompt />
-        </AudioPlayerProvider>
+        {/* UserProvider arriba: necesitamos el user/profile en todos
+            los componentes (tab-bar, song-row, etc.) para sync con
+            Supabase. RegisterGate bloquea con modal si el user está
+            logueado pero sin ciudad seteada (flow de primer registro). */}
+        <UserProvider>
+          {/* AudioPlayerProvider envuelve TODO: el <audio> vive dentro,
+              persiste entre cambios de ruta. La Media Session API se
+              conecta ahí para background playback en iOS/Android. */}
+          <AudioPlayerProvider catalog={catalog}>
+            {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
+                (que está en z-0). El <html> tiene fondo negro como fallback. */}
+            <div className="relative z-10">{children}</div>
+            <GlobalMiniPlayer />
+            <TabBar />
+            <InstallPrompt />
+            <RegisterGate />
+            <SyncManager />
+          </AudioPlayerProvider>
+        </UserProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

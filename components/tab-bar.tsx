@@ -7,10 +7,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Disc3, Search, Download, Settings } from "lucide-react";
+import { Home, Disc3, Search, Download, User } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
-type TabKey = "home" | "cds" | "search" | "library" | "settings";
+type TabKey = "home" | "cds" | "search" | "library" | "perfil";
 
 interface Tab {
   key: TabKey;
@@ -25,7 +25,7 @@ const TABS: Tab[] = [
   { key: "cds", href: "/cds", label: "CDs", Icon: Disc3, matches: (p) => p.startsWith("/cds") || p.startsWith("/cancion") },
   { key: "search", href: "/search", label: "Buscar", Icon: Search, matches: (p) => p.startsWith("/search") },
   { key: "library", href: "/library", label: "Offline", Icon: Download, matches: (p) => p.startsWith("/library") },
-  { key: "settings", href: "/settings", label: "Ajustes", Icon: Settings, matches: (p) => p.startsWith("/settings") },
+  { key: "perfil", href: "/perfil", label: "Perfil", Icon: User, matches: (p) => p.startsWith("/perfil") || p.startsWith("/login") },
 ];
 
 export function TabBar() {

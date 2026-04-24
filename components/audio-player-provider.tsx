@@ -18,6 +18,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import type { CD, Cancion } from "@/lib/types";
 import { haptic } from "@/lib/haptic";
+import { emit } from "@/lib/user-sync";
 
 interface Track {
   cancion: Cancion;
@@ -67,8 +68,11 @@ function incrementPlay(id: string) {
   try {
     const raw = localStorage.getItem(PLAYS_KEY);
     const plays = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-    plays[id] = (plays[id] ?? 0) + 1;
+    const next = (plays[id] ?? 0) + 1;
+    plays[id] = next;
     localStorage.setItem(PLAYS_KEY, JSON.stringify(plays));
+    // Sync a Supabase (si hay user logueado).
+    emit("lds:play", { cancionId: id, playCount: next });
   } catch {
     /* ignore */
   }

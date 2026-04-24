@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Los Del Sur</string>
+    <string name="title_activity_main">Los Del Sur</string>
+    <string name="package_name">com.losdelsur.app</string>
+    <string name="custom_url_scheme">com.losdelsur.app</string>
+</resources>

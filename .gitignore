@@ -57,3 +57,17 @@ __pycache__/
 
 # Design handoff — assets source (no deployeados)
 /public/design-assets/
+
+# Capacitor — build artefacts de Android. El folder `android/` SÍ se
+# commitea (es el proyecto nativo), pero estos son outputs de Gradle.
+/android/app/build/
+/android/build/
+/android/.gradle/
+/android/local.properties
+/android/.idea/
+/android/app/release/
+/android/app/debug/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
