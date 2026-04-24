@@ -1,29 +1,17 @@
-mis abuelos me enseñaron a quererte
-
-alentarte y a seguirte hasta le muerte
-
-de pelao me llevaban a las canchas
-
-con los bombos las banderas y avalanchas
-
-mi cucho me decia en el estadio
-
-que debiamos odiar a millonarios
-
-al rojo en todas partes lo corremos
-
-tengo aguante voy al frente soy sureño
-
+Vamos verdolaga que tenés que dar la vida
+Vamos verdolaga dame una alegría (bis)
+Verdolaga (bis 3)
 
-
-vamos verdolaga que tenes que dar la vida
-
-vamos verdolaga dame una alegria
-
-vamos verdolaga que tenes que dar la vida
-
-vamos verdolaga dame una alegria
-
+Mis abuelos me enseñaron a quererte
+Alentarte y a seguirte hasta la muerte
+De pelao me trajeron a la cancha...
+Con los bombos, las banderas y avalanchas
+Y mi cucho me decía en el estadio...
+Que debíamos odiar a millonarios!!!
+Los del rojo en todas partes los corremos...
+Tengo aguante soy, voy al frente soy sureño!!!!
 
-
-verdolaga verdolaga
+Coro:
+Vamos verdolaga que tenés que dar la vida
+Vamos verdolaga dame una alegría (bis)
+Verdolaga (bis 3)

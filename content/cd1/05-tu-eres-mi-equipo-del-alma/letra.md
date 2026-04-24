@@ -1,16 +1,15 @@
-Tus eres mi equipo del alma
+Tu eres mi equipo del alma
 Yo siempre te sigo
 En toda campaña y jornada estoy siempre contigo
-Con esta tu hinchada de siempre con los jugadores
-Daremos la vuelta de nuevo en los libertadores
-En ciertos momentos
-Difíciles que hay en la vida
-Te entrego todo mi aliento
-Y mi alegría
-Desde las tribunas se siente
-Un amor desbordante
-La hinchada que quiere otra copa
-La de más aguante
+Con esta tu hinchada de siempre y con los jugadores
+Daremos la vuelta de nuevo en la libertadores.
+
+En ciertos momentos difíciles que hay en la vida
+Te entrego todo mi aliento y mi alegría,
+desde la tribuna se siente un amor desbordante,
+la hinchada que quiere otra copa la de más aguante.
+
+CORO:
 Vamos vamos Nacional
-Vamos vamos verdolaga
-Por tu hinchada que te quiere la que siempre te acompaña
+Vamos Vamos Verdolaga, por tu hinchada que te quiere
+La que siempre te acompaña (Bis)

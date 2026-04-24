@@ -1,9 +1,24 @@
-Campeón, yo te llevo dentro de mi corazón...
+Dale, dale verde, no le falles a tu gente
+Dale dale verde, vamos campeón!!!!!!!
+Toda tu fiel hinchada, hoy ha venido a verte
+Te vino a dar, el corazón!!!!
+Y aunque estés abajo nunca te dejaremos
+Porque vos sos nuestra pasión!!!!!!
 
-Campeón vos sos toda mi vida, vos sos mi pasión...
+CORO:
+Dale, dale verde, no le falles a tu gente
+Dale dale verde, vamos campeón!!!!!!! (Bis)
 
-Campeón esta hinchada enloquece por verte a vos jugar
+Esta es la hinchada verdolaga...
+La que alienta siempre a Nacional...
+La que llena todos los estadios
+y la que nunca te va a dejar...
 
-Por eso no le falles a tu hinchada
+CORO:
+Oh oh oh y vamos vamos verdolaga
+Oh oh oh y vamos vamos a ganar oh oh oh
+Porque esta hinchada a vos te alienta... oh oh oh
+Porque queremos festejar!!!!!!!
 
-Que te sigue en las buenas y en las malas!
+Vamos campeón sos mi pasión
+Verde te llevo en el corazón!!!!!!! (Bis un millón de veces!!!!!!!)

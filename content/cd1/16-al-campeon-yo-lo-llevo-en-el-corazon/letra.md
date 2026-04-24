@@ -1,9 +1,4 @@
-Al campeón yo lo llevo en el corazón
-
-Vos campeón sos mi vida mi gran pasión
-
-Porque la vuelta vamo a dar
-
-Y con la hinchada festejar
-
-VAMOS NACIONAL
+Al campeón, yo lo llevo en el corazón..
+vos campeón, sos mi vida y mi gran pasión..
+por que la vuelta vamos a dar y con la hinchada a festejar
+vamos Nacional (BIS)
