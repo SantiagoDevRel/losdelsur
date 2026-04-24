@@ -14,6 +14,7 @@ import { LogIn, LogOut, MapPin, Users } from "lucide-react";
 import { CacheManager } from "@/components/cache-manager";
 import { CreditsFooter } from "@/components/credits-footer";
 import { InstallCard } from "@/components/install-card";
+import { PushOptIn } from "@/components/push-opt-in";
 import { useUser } from "@/components/user-provider";
 import { haptic } from "@/lib/haptic";
 
@@ -48,6 +49,8 @@ export function PerfilView() {
       )}
 
       <InstallCard />
+
+      <PushOptIn />
 
       <CacheManager />
 

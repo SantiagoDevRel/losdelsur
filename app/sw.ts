@@ -72,3 +72,54 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// --- Web Push listener ---
+// Cuando el server dispara webpush.sendNotification(), este evento llega.
+// El payload (JSON serializado) trae title/body/url/icon.
+
+self.addEventListener("push", (event: PushEvent) => {
+  let data: { title: string; body: string; url?: string; icon?: string } = {
+    title: "La Banda Los Del Sur",
+    body: "Abrí la app",
+  };
+  try {
+    if (event.data) data = { ...data, ...(event.data.json() as typeof data) };
+  } catch {
+    /* payload no es JSON, usamos defaults */
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon ?? "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url ?? "/" },
+      // `tag` colapsa notifs repetidas. `renotify` existe en la
+      // plataforma pero los types de lib.dom no lo exponen; lo
+      // pasamos con cast.
+      tag: "lds-push",
+      ...({ renotify: true } as Record<string, unknown>),
+    }),
+  );
+});
+
+// Click en la notificación → focus/abrir la app en el URL adjunto.
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string } | undefined)?.url ?? "/";
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // Si hay una ventana abierta del sitio, enfocarla y navegar.
+      for (const client of clients) {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) await (client as WindowClient).navigate(url);
+          return;
+        }
+      }
+      // Ninguna ventana abierta → abrir una nueva.
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
