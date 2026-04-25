@@ -38,7 +38,9 @@ export function PerfilView() {
         <HeroSkeleton />
       ) : user ? (
         <LoggedInHero
-          email={user.email ?? ""}
+          // Identidad visible: email (login email/Google) o phone (login celular).
+          // user.phone viene en formato E.164 ("+573001234567"), no formateado.
+          identity={user.email ?? user.phone ?? ""}
           username={profile?.username ?? null}
           ciudad={profile?.ciudad ?? null}
           combo={profile?.combo ?? null}
@@ -114,18 +116,28 @@ function LoggedOutHero() {
 }
 
 function LoggedInHero({
-  email,
+  identity,
   username,
   ciudad,
   combo,
   avatarUrl,
 }: {
-  email: string;
+  identity: string;
   username: string | null;
   ciudad: string | null;
   combo: string | null;
   avatarUrl: string | null;
 }) {
+  // Si la identidad es un phone E.164 (+573001234567), mostramos formateado:
+  // "+57 300 123 4567". Si es email, lo dejamos como está.
+  const isPhone = identity.startsWith("+");
+  const displayIdentity = isPhone ? formatPhone(identity) : identity;
+  // Para "username placeholder" cuando no hay username explícito:
+  // - email → la parte antes del @
+  // - phone → los últimos 4 dígitos como handle
+  const fallbackName = isPhone
+    ? `Sureño ${identity.slice(-4)}`
+    : (identity.split("@")[0] ?? "Sureño");
   return (
     <section className="flex flex-col items-center px-5 py-6">
       {avatarUrl ? (
@@ -152,10 +164,10 @@ function LoggedInHero({
         className="mt-4 text-center uppercase text-white"
         style={{ fontFamily: "var(--font-display), Anton, sans-serif", fontSize: 24, lineHeight: 1 }}
       >
-        {username || email.split("@")[0]}
+        {username || fallbackName}
       </p>
       <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-white/50">
-        {email}
+        {displayIdentity}
       </p>
 
       {/* Ciudad + combo */}
@@ -187,4 +199,16 @@ function LoggedInHero({
       </form>
     </section>
   );
+}
+
+// Formatea +573001234567 → +57 300 123 4567 (visual nicety).
+function formatPhone(e164: string): string {
+  if (!e164.startsWith("+")) return e164;
+  // Heurística simple: separar el código (todo hasta primer dígito de
+  // 10 al final) y agrupar el resto en bloques de 3.
+  const digits = e164.slice(1);
+  const last10 = digits.slice(-10);
+  const cc = digits.slice(0, digits.length - 10);
+  if (last10.length !== 10) return e164;
+  return `+${cc} ${last10.slice(0, 3)} ${last10.slice(3, 6)} ${last10.slice(6)}`;
 }
