@@ -1,11 +1,17 @@
 """
 scripts/recompress-audio.py
-Re-encodea todos los content/cdN/<folder>/audio.mp3 a AAC 64 kbps mono
-y los guarda como audio.m4a en la misma carpeta. Borra el .mp3
-original después. Usa ffmpeg (ya instalado).
 
-Savings típicos: 117 kbps stereo → 64 kbps mono ≈ 55% del tamaño.
-Calidad: imperceptible para cánticos (voz + crowd noise).
+⚠️ DEPRECADO — borrar mp3 originales fue un error. Usar
+scripts/redownload-audio.py para bajar de YouTube a 128k stereo.
+
+Si TODAVÍA querés correr este (ej: tenés mp3 nuevos que comprimir):
+  - Default es ahora --keep-mp3 ON (no borra los originales).
+  - Default bitrate cambió de 64k mono a 128k stereo (sweet spot).
+  - Para forzar el comportamiento viejo: --bitrate 64k --mono --delete-mp3
+    (no recomendado, pero ahí está).
+
+Re-encodea content/cdN/<folder>/audio.mp3 a AAC y los guarda como
+audio.m4a en la misma carpeta. Usa ffmpeg.
 """
 
 from __future__ import annotations
@@ -20,8 +26,18 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
-    ap.add_argument("--keep-mp3", action="store_true", help="Dejar el .mp3 original")
+    ap.add_argument(
+        "--delete-mp3",
+        action="store_true",
+        help="Borrar el .mp3 original tras encodear (NO recomendado — perdés el original)",
+    )
+    ap.add_argument("--bitrate", default="128k", help="Bitrate AAC (default 128k)")
+    ap.add_argument("--mono", action="store_true", help="Forzar mono en vez de stereo")
     args = ap.parse_args()
+    # Default ahora es: keep mp3, 128k stereo.
+    keep_mp3 = not args.delete_mp3
+    bitrate = args.bitrate
+    channels = 1 if args.mono else 2
 
     songs = sorted(CONTENT.glob("cd*/*/audio.mp3"))
     if not songs:
@@ -55,8 +71,8 @@ def main():
             "-i", str(src),
             "-vn",  # descartar streams de video (algunos "mp3" son mp4 con h264 de YouTube)
             "-c:a", "aac",
-            "-b:a", "64k",
-            "-ac", "1",
+            "-b:a", bitrate,
+            "-ac", str(channels),
             "-movflags", "+faststart",
             str(dst),
         ]
@@ -75,7 +91,9 @@ def main():
         print(f"   {size_in // 1024} KB -> {size_out // 1024} KB  ({pct}% del original)")
         ok += 1
 
-        if not args.keep_mp3:
+        if not keep_mp3:
+            # Esto era el comportamiento default viejo. Lo dejé opt-in
+            # con --delete-mp3 — perder los originales fue un error.
             src.unlink()
 
     mb_in = total_in / (1024 * 1024)
