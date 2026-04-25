@@ -62,6 +62,11 @@ interface RawCDMeta {
   subtitulo?: string;
   color?: string;
   cover_image?: string;
+  // Cache buster por CD: cuando re-encodeamos los audios de un CD a
+  // mejor calidad, bumpeamos esto a 2, 3, etc. Cambia la URL pública
+  // (?v=N), invalidando el cache CDN de Vercel + el SW de cada user
+  // sin tocar los CDs cuyos audios no cambiaron.
+  audio_version?: number;
 }
 
 interface RawSong {
@@ -106,11 +111,16 @@ function loadCD(dirName: string): CD {
       const hasRealLetra =
         letra.length >= 50 && !/pendiente de transcripci/i.test(letra);
       const ready = Boolean(hasRealLetra && letra_timed && letra_timed.length > 0);
-      // URL pública del audio: /audio/cdN/NN-slug.m4a (AAC 64k mono).
+      // URL pública del audio: /audio/cdN/NN-slug.m4a (AAC 128k stereo
+      // a partir de audio_version=2; antes era 64k mono).
       // El script sync-audio copia los archivos con ese esquema.
-      // Si todavía existe un .mp3 legacy, el sync también lo copia
-      // como fallback (ver scripts/sync-audio.ts).
-      const audio_url = `/audio/${cdMeta.id}/${songDir}.m4a`;
+      // Append `?v=N` cuando audio_version > 1 para bustear el cache
+      // CDN + SW cuando re-encodeamos un CD.
+      const v = cdMeta.audio_version ?? 1;
+      const audio_url =
+        v > 1
+          ? `/audio/${cdMeta.id}/${songDir}.m4a?v=${v}`
+          : `/audio/${cdMeta.id}/${songDir}.m4a`;
       const cancion: Cancion = {
         id: raw.id,
         numero: raw.numero,
