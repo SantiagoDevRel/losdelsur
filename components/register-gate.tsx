@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, MapPin, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "./user-provider";
@@ -34,11 +34,16 @@ export function RegisterGate() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Solo mostrar si está logueado, profile cargado, y no tiene ciudad.
-  if (loading || !user || !profile) return null;
-  if (profile.ciudad) return null;
+  // Memoizado siempre — debe ir antes de cualquier early return para
+  // respetar las reglas de hooks.
+  const supabase = useMemo(() => createClient(), []);
 
-  const supabase = createClient();
+  // Solo mostrar si está logueado y le falta ciudad. Si profile aún no
+  // cargó pero hay user, esperamos (no mostramos modal todavía).
+  if (loading || !user) return null;
+  if (profile && profile.ciudad) return null;
+  // Si hay user pero profile es null (edge case del trigger), aún
+  // mostramos el modal — al guardar, hace upsert por id.
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,13 +55,19 @@ export function RegisterGate() {
     haptic("tap");
     setSaving(true);
     setErr(null);
+    // Upsert en vez de update — si por edge case el profile no
+    // existe todavía, lo crea con el id del user actual. RLS permite
+    // insert solo cuando auth.uid() = id, así que es seguro.
     const { error } = await supabase
       .from("profiles")
-      .update({
-        ciudad: ciudadFinal,
-        combo: combo.trim() || null,
-      })
-      .eq("id", user!.id);
+      .upsert(
+        {
+          id: user!.id,
+          ciudad: ciudadFinal,
+          combo: combo.trim() || null,
+        },
+        { onConflict: "id" },
+      );
     setSaving(false);
     if (error) {
       setErr(error.message);

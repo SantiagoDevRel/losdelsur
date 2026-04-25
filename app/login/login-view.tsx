@@ -15,7 +15,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, Mail, MessageCircle, Phone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { haptic } from "@/lib/haptic";
@@ -50,7 +50,8 @@ export function LoginView() {
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/perfil";
 
-  const supabase = createClient();
+  // Memoizado para que la referencia sea estable entre renders.
+  const supabase = useMemo(() => createClient(), []);
 
   // Si llegan a /login con ?error=auth (callback OAuth fallido), mostrar.
   useEffect(() => {

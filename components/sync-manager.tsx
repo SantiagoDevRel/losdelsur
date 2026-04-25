@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   listen,
@@ -22,7 +22,9 @@ import { useUser } from "./user-provider";
 
 export function SyncManager() {
   const { user } = useUser();
-  const supabase = createClient();
+  // Memoizado igual que en UserProvider — evita el loop de re-renders
+  // que invalidaba useEffects dependientes de `supabase`.
+  const supabase = useMemo(() => createClient(), []);
   const syncedRef = useRef<string | null>(null);
 
   // Sync inicial al login.

@@ -12,6 +12,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+// Nota: este componente usa fetch a /api/push/subscribe en vez de
+// supabase-js directo, así que no necesita memoizar createClient.
 import { Bell, BellOff, Check, Loader2 } from "lucide-react";
 import { haptic } from "@/lib/haptic";
 

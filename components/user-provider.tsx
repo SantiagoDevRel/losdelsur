@@ -9,6 +9,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -37,7 +38,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createClient();
+  // CRÍTICO: createClient() se memoiza con useMemo([]) para que la
+  // referencia sea estable entre renders. Si llamáramos createClient()
+  // directamente en cada render, useCallback/useEffect dependientes de
+  // `supabase` se invalidarían infinitamente, causando un loop de
+  // setLoading(false) → re-render → setLoading(false)... y el modal
+  // RegisterGate quedaba escondido porque `loading` nunca se estabilizaba.
+  const supabase = useMemo(() => createClient(), []);
 
   const loadProfile = useCallback(
     async (u: User | null) => {
@@ -45,11 +52,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         return;
       }
-      const { data } = await supabase
+      let { data } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", u.id)
         .maybeSingle();
+      // Defensa: si el trigger handle_new_user no creó el row (puede
+      // pasar en race conditions o si el trigger fue añadido después
+      // de que existieran users), lo creamos acá. Garantiza que todo
+      // user logueado SIEMPRE tenga profile, así RegisterGate puede
+      // confiar en `profile.ciudad === null` como condición.
+      if (!data) {
+        const { data: created } = await supabase
+          .from("profiles")
+          .upsert({ id: u.id }, { onConflict: "id", ignoreDuplicates: true })
+          .select("*")
+          .maybeSingle();
+        data = created;
+      }
       setProfile((data as Profile | null) ?? null);
     },
     [supabase],
