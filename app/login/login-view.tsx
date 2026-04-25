@@ -1,14 +1,15 @@
 // app/login/login-view.tsx
-// Login con tres métodos en orden de prioridad:
-//   1. CELULAR (OTP) — primario. Pensado para sureños sin gmail.
-//      Usa Supabase Phone Auth con Twilio (SMS) por detrás. Se puede
-//      migrar a WhatsApp en el dashboard de Supabase sin cambiar el
-//      código del cliente.
+// Login con dos métodos:
+//   1. CELULAR (OTP) — primario. Para sureños sin gmail.
+//      Usa Supabase Phone Auth (con SMS por Twilio o WhatsApp por
+//      Twilio Business / Cloud API). Cambiar de SMS a WhatsApp es solo
+//      un toggle en Supabase Dashboard sin tocar este código.
 //   2. EMAIL (magic link) — secundario.
-//   3. GOOGLE OAuth — terciario. Solo se muestra si el provider está
-//      habilitado en Supabase. Para activarlo, ver docs/AUTH-SETUP.md.
 //
 // El flow del celular es 2 pasos: pedir el OTP, luego verificarlo.
+//
+// Google OAuth fue removido — la mayoría de los sureños no usa gmail
+// y mantener un botón roto era peor UX que no tenerlo.
 
 "use client";
 
@@ -35,11 +36,6 @@ const PAISES = [
 
 type Method = "phone" | "email";
 type PhoneStep = "input" | "otp";
-
-// Flag para mostrar/esconder Google. Lo encendés cuando termines el setup
-// del provider en Supabase Dashboard. Default: off, para no mostrar un
-// botón roto a los sureños.
-const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED === "true";
 
 export function LoginView() {
   const [method, setMethod] = useState<Method>("phone");
@@ -155,23 +151,6 @@ export function LoginView() {
     } else {
       setEmailSent(true);
       haptic("double");
-    }
-  }
-
-  // ----- Google OAuth -----
-
-  async function signInWithGoogle() {
-    haptic("tap");
-    setErr(null);
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextParam)}`,
-      },
-    });
-    if (error) {
-      setErr("Google no está disponible aún. Usá celular o email.");
     }
   }
 
@@ -417,27 +396,6 @@ export function LoginView() {
         </section>
       )}
 
-      {/* Google OAuth — solo si está habilitado */}
-      {GOOGLE_ENABLED && (
-        <>
-          <div className="mx-5 my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-white/10" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/40">o</span>
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
-          <section className="px-5">
-            <button
-              type="button"
-              onClick={signInWithGoogle}
-              className="flex h-12 w-full items-center justify-center gap-3 rounded-lg bg-white text-[13px] font-extrabold uppercase tracking-[0.08em] text-black hover:bg-white/90"
-            >
-              <GoogleLogo />
-              CONTINUAR CON GOOGLE
-            </button>
-          </section>
-        </>
-      )}
-
       {err && (
         <p className="mx-5 mt-4 text-[11px] font-medium uppercase tracking-[0.04em] text-red-400">
           {err}
@@ -454,13 +412,3 @@ export function LoginView() {
   );
 }
 
-function GoogleLogo() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden>
-      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.8 32.4 29.3 35.5 24 35.5c-6.4 0-11.5-5.2-11.5-11.5S17.6 12.5 24 12.5c2.9 0 5.6 1.1 7.7 2.9l5.7-5.7C33.7 6.4 29 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.3-.1-2.6-.3-3.9z" />
-      <path fill="#FF3D00" d="M6.3 14.1l6.6 4.8C14.7 15.1 19 12.5 24 12.5c2.9 0 5.6 1.1 7.7 2.9l5.7-5.7C33.7 6.4 29 4.5 24 4.5 16.4 4.5 9.8 8.8 6.3 14.1z" />
-      <path fill="#4CAF50" d="M24 43.5c4.9 0 9.4-1.9 12.8-4.9l-5.9-5c-2 1.4-4.4 2.2-6.9 2.2-5.3 0-9.7-3.1-11.3-7.5l-6.5 5C9.6 39 16.3 43.5 24 43.5z" />
-      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.1-2.1 3.9-3.9 5.2l5.9 5c-.4.4 6.5-4.7 6.5-14.2 0-1.3-.1-2.6-.2-3.9z" />
-    </svg>
-  );
-}
