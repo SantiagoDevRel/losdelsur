@@ -1,138 +1,156 @@
 // lib/ciudades.ts
-// Ciudades y municipios colombianos para el autocomplete del registro.
-// Priorizadas: área metropolitana de Medellín (donde está la barra),
-// Eje Cafetero, capitales de departamento, ciudades grandes.
+// Ciudades/municipios para el autocomplete del registro.
 //
-// El usuario PUEDE escribir cualquier ciudad libre — esto es solo un
-// shortcut para los casos comunes.
+// Formato:
+//   - Colombia:    "<Ciudad>, <Departamento>"  (ej: "Medellín, Antioquia")
+//   - Internacional: "<Ciudad> (<País>)"        (ej: "Madrid (España)")
+//
+// Orden: priorizamos área metropolitana de Medellín (donde está el
+// Atanasio y la mayoría de los sureños), después resto de Antioquia,
+// Eje Cafetero, Bogotá + Cundinamarca, y el resto del país. Al final
+// las internacionales, para sureños que viven afuera.
+//
+// El usuario PUEDE escribir cualquier ciudad libre — esta lista es
+// solo un shortcut para los casos comunes.
 
 export const CIUDADES_COLOMBIA: string[] = [
-  // Área Metropolitana del Valle de Aburrá (donde está el Atanasio)
-  "Medellín",
-  "Bello",
-  "Itagüí",
-  "Envigado",
-  "Sabaneta",
-  "La Estrella",
-  "Caldas",
-  "Copacabana",
-  "Girardota",
-  "Barbosa",
+  // Área Metropolitana del Valle de Aburrá — Antioquia
+  "Medellín, Antioquia",
+  "Bello, Antioquia",
+  "Itagüí, Antioquia",
+  "Envigado, Antioquia",
+  "Sabaneta, Antioquia",
+  "La Estrella, Antioquia",
+  "Caldas, Antioquia",
+  "Copacabana, Antioquia",
+  "Girardota, Antioquia",
+  "Barbosa, Antioquia",
 
   // Antioquia — otros municipios populares
-  "Rionegro",
-  "Marinilla",
-  "El Retiro",
-  "La Ceja",
-  "Guarne",
-  "Apartadó",
-  "Turbo",
-  "Caucasia",
-  "Yarumal",
-  "Santa Fe de Antioquia",
-  "Jardín",
-  "Jericó",
-  "Sonsón",
-  "Necoclí",
-  "Carepa",
-  "Chigorodó",
-  "Amagá",
-  "Andes",
-  "Urrao",
+  "Rionegro, Antioquia",
+  "Marinilla, Antioquia",
+  "El Retiro, Antioquia",
+  "La Ceja, Antioquia",
+  "Guarne, Antioquia",
+  "Apartadó, Antioquia",
+  "Turbo, Antioquia",
+  "Caucasia, Antioquia",
+  "Yarumal, Antioquia",
+  "Santa Fe de Antioquia, Antioquia",
+  "Jardín, Antioquia",
+  "Jericó, Antioquia",
+  "Sonsón, Antioquia",
+  "Necoclí, Antioquia",
+  "Carepa, Antioquia",
+  "Chigorodó, Antioquia",
+  "Amagá, Antioquia",
+  "Andes, Antioquia",
+  "Urrao, Antioquia",
 
   // Eje Cafetero
-  "Manizales",
-  "Pereira",
-  "Armenia",
-  "Chinchiná",
-  "Villamaría",
-  "Calarcá",
-  "Dosquebradas",
-  "Santa Rosa de Cabal",
-  "La Dorada",
+  "Manizales, Caldas",
+  "Chinchiná, Caldas",
+  "Villamaría, Caldas",
+  "La Dorada, Caldas",
+  "Pereira, Risaralda",
+  "Dosquebradas, Risaralda",
+  "Santa Rosa de Cabal, Risaralda",
+  "Armenia, Quindío",
+  "Calarcá, Quindío",
 
-  // Capitales y ciudades grandes
-  "Bogotá",
-  "Cali",
-  "Barranquilla",
-  "Cartagena",
-  "Cúcuta",
-  "Bucaramanga",
-  "Santa Marta",
-  "Ibagué",
-  "Pasto",
-  "Neiva",
-  "Villavicencio",
-  "Montería",
-  "Sincelejo",
-  "Popayán",
-  "Tunja",
-  "Florencia",
-  "Valledupar",
-  "Riohacha",
-  "Quibdó",
-  "Yopal",
-  "Mocoa",
-  "Arauca",
-  "Leticia",
-  "Mitú",
-  "Inírida",
-  "San José del Guaviare",
-  "Puerto Carreño",
+  // Bogotá + Cundinamarca
+  "Bogotá, D.C.",
+  "Soacha, Cundinamarca",
+  "Girardot, Cundinamarca",
+  "Fusagasugá, Cundinamarca",
+  "Zipaquirá, Cundinamarca",
+  "Chía, Cundinamarca",
+  "Cajicá, Cundinamarca",
+  "Cota, Cundinamarca",
+  "Funza, Cundinamarca",
+  "Mosquera, Cundinamarca",
+  "Madrid, Cundinamarca",
+  "Facatativá, Cundinamarca",
+  "Tabio, Cundinamarca",
+  "Tenjo, Cundinamarca",
 
-  // Otros municipios populares
-  "Soacha",
-  "Floridablanca",
-  "Girón",
-  "Piedecuesta",
-  "Palmira",
-  "Buenaventura",
-  "Tuluá",
-  "Cartago",
-  "Buga",
-  "Yumbo",
-  "Jamundí",
-  "Soledad",
-  "Malambo",
-  "Sabanagrande",
-  "Magangué",
-  "Turbaco",
-  "El Carmen de Bolívar",
-  "Aguachica",
-  "Ocaña",
-  "Maicao",
-  "Fundación",
-  "Ciénaga",
-  "Sogamoso",
-  "Duitama",
-  "Chiquinquirá",
-  "Espinal",
-  "Honda",
-  "Girardot",
-  "Fusagasugá",
-  "Zipaquirá",
-  "Chía",
-  "Cajicá",
-  "Cota",
-  "Funza",
-  "Mosquera",
-  "Madrid",
-  "Facatativá",
-  "Tabio",
-  "Tenjo",
+  // Valle del Cauca
+  "Cali, Valle del Cauca",
+  "Palmira, Valle del Cauca",
+  "Buenaventura, Valle del Cauca",
+  "Tuluá, Valle del Cauca",
+  "Cartago, Valle del Cauca",
+  "Buga, Valle del Cauca",
+  "Yumbo, Valle del Cauca",
+  "Jamundí, Valle del Cauca",
 
-  // Internacional — para sureños que viven afuera
-  "Miami",
+  // Costa Caribe
+  "Barranquilla, Atlántico",
+  "Soledad, Atlántico",
+  "Malambo, Atlántico",
+  "Sabanagrande, Atlántico",
+  "Cartagena, Bolívar",
+  "Magangué, Bolívar",
+  "Turbaco, Bolívar",
+  "El Carmen de Bolívar, Bolívar",
+  "Santa Marta, Magdalena",
+  "Fundación, Magdalena",
+  "Ciénaga, Magdalena",
+  "Riohacha, La Guajira",
+  "Maicao, La Guajira",
+  "Valledupar, Cesar",
+  "Aguachica, Cesar",
+  "Montería, Córdoba",
+  "Sincelejo, Sucre",
+
+  // Santanderes
+  "Cúcuta, Norte de Santander",
+  "Ocaña, Norte de Santander",
+  "Bucaramanga, Santander",
+  "Floridablanca, Santander",
+  "Girón, Santander",
+  "Piedecuesta, Santander",
+
+  // Tolima + Huila + Boyacá
+  "Ibagué, Tolima",
+  "Espinal, Tolima",
+  "Honda, Tolima",
+  "Neiva, Huila",
+  "Tunja, Boyacá",
+  "Sogamoso, Boyacá",
+  "Duitama, Boyacá",
+  "Chiquinquirá, Boyacá",
+
+  // Sur del país
+  "Pasto, Nariño",
+  "Popayán, Cauca",
+  "Florencia, Caquetá",
+  "Mocoa, Putumayo",
+
+  // Llanos + Amazonía + Pacífico chocó
+  "Villavicencio, Meta",
+  "Yopal, Casanare",
+  "Arauca, Arauca",
+  "Quibdó, Chocó",
+  "Leticia, Amazonas",
+  "Mitú, Vaupés",
+  "Inírida, Guainía",
+  "San José del Guaviare, Guaviare",
+  "Puerto Carreño, Vichada",
+
+  // Internacionales — para sureños que viven afuera
+  "Miami (Estados Unidos)",
+  "Nueva York (Estados Unidos)",
   "Madrid (España)",
-  "Buenos Aires",
-  "Ciudad de México",
-  "Nueva York",
-  "Toronto",
+  "Barcelona (España)",
+  "Buenos Aires (Argentina)",
+  "Ciudad de México (México)",
+  "Toronto (Canadá)",
 ];
 
 // Normaliza para búsqueda: minúsculas + sin acentos.
 // El range ̀-ͯ cubre los "combining diacritical marks" que
-// quedan después de NFKD (ej: "Medellín" → "Medellín" → "medellin").
+// quedan después de NFKD (ej: "Medellín" → "medellin").
 export function normalizeCiudad(s: string): string {
   return s
     .toLowerCase()
@@ -141,7 +159,8 @@ export function normalizeCiudad(s: string): string {
 }
 
 // Filtra ciudades que empiezan con o contienen el query, max N resultados.
-// Prioriza las que EMPIEZAN con el query para que "med" → Medellín primero.
+// Prioriza las que EMPIEZAN con el query (ej: "med" → "Medellín, Antioquia"
+// primero, no "Almagro" o ciudades intermedias).
 export function searchCiudades(query: string, max = 6): string[] {
   const q = normalizeCiudad(query.trim());
   if (!q) return [];
