@@ -64,6 +64,11 @@ __pycache__/
 # Source assets de diseño (PSDs, exports grandes) — no van al deploy.
 /assets/design-source/
 
+# Backups del audio anterior (los crea redownload-audio.py por seguridad).
+# No los commiteamos — pesan ~1.5 MB c/u y son recuperables. Borralos
+# manualmente cuando confirmes que el nuevo audio suena bien.
+content/cd*/*/audio.legacy.m4a
+
 # JetBrains IDEs (Android Studio crea esta carpeta)
 .idea/
 

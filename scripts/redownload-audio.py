@@ -37,6 +37,15 @@ import tempfile
 from fnmatch import fnmatch
 from pathlib import Path
 
+# Windows: forzar stdout UTF-8 para que las flechas/emojis no rompan
+# print() cuando la consola está en cp1252.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
 CONTENT = Path("content")
 SOURCES = CONTENT / "audio-sources.json"
 
@@ -91,9 +100,13 @@ def download_one(key: str, url: str, bitrate: str, backup: bool, dry: bool) -> s
         # -f bestaudio = mejor formato solo-audio (evita reencode innecesario
         # si ya viene en m4a/aac).
         # --no-playlist por si el URL apunta a un playlist (solo el video).
+        # Format fallback chain: bestaudio si existe, sino el mejor combinado
+        # (luego ffmpeg extrae el audio). Algunos videos viejos solo tienen
+        # formato muxed (audio+video juntos) — para esos `bestaudio` falla
+        # pero `best` funciona.
         download_cmd = [
             sys.executable, "-m", "yt_dlp",
-            "-f", "bestaudio",
+            "-f", "bestaudio/best",
             "--no-playlist",
             "--no-warnings",
             "-q",
