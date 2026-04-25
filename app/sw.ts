@@ -15,7 +15,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { CacheFirst, Serwist } from "serwist";
+import { CacheFirst, NetworkFirst, Serwist } from "serwist";
 
 // Tipado del scope global del worker.
 declare global {
@@ -66,7 +66,19 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname.startsWith("/design-assets/"),
       handler: new CacheFirst({ cacheName: "lds-design-assets-v1" }),
     },
-    // Resto: defaults razonables de Serwist (páginas, imágenes, etc.).
+    // Navegaciones (HTML pages) — NetworkFirst con timeout corto.
+    // En el gym con señal débil, esperamos 4s a la red; si no, servimos
+    // la versión cacheada (o el fallback "/"). Esto previene el error
+    // "FetchEvent.respondWith received an error: no-response" que
+    // aparece en Safari iOS cuando la red falla y no hay fallback.
+    {
+      matcher: ({ request }) => request.mode === "navigate",
+      handler: new NetworkFirst({
+        cacheName: "lds-pages-v1",
+        networkTimeoutSeconds: 4,
+      }),
+    },
+    // Resto: defaults razonables de Serwist (imágenes, fonts, etc.).
     ...defaultCache,
   ],
 });

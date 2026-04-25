@@ -52,24 +52,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         return;
       }
-      let { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", u.id)
         .maybeSingle();
-      // Defensa: si el trigger handle_new_user no creó el row (puede
-      // pasar en race conditions o si el trigger fue añadido después
-      // de que existieran users), lo creamos acá. Garantiza que todo
-      // user logueado SIEMPRE tenga profile, así RegisterGate puede
-      // confiar en `profile.ciudad === null` como condición.
-      if (!data) {
-        const { data: created } = await supabase
-          .from("profiles")
-          .upsert({ id: u.id }, { onConflict: "id", ignoreDuplicates: true })
-          .select("*")
-          .maybeSingle();
-        data = created;
-      }
+      // Si la query falla (e.g. user fantasma sin auth.users), tiramos
+      // el error para que el effect parent haga signOut.
+      if (error) throw error;
+      // Si data es null, simplemente lo seteamos null. El RegisterGate
+      // muestra el modal cuando user existe + profile es null o sin
+      // ciudad. El submit del modal hace upsert con id=user.id, que
+      // es lo correcto cuando el trigger handle_new_user no corrió.
       setProfile((data as Profile | null) ?? null);
     },
     [supabase],
@@ -82,18 +76,58 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (cancelled) return;
-      setUser(data.user);
-      await loadProfile(data.user);
-      setLoading(false);
-    });
+
+    // Failsafe: pase lo que pase, en 5s ya no estamos "loading".
+    // Si el getUser cuelga por red mala o el server no responde, no
+    // dejamos al UI atorado mostrando skeleton para siempre.
+    const failsafe = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 5000);
+
+    supabase.auth
+      .getUser()
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        // Si el JWT cookie apunta a un user que ya no existe en DB
+        // (e.g. user borrado manualmente), Supabase devuelve error.
+        // Limpiamos la sesión local para forzar logout limpio.
+        if (error) {
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+        setUser(data.user);
+        try {
+          await loadProfile(data.user);
+        } catch {
+          // Profile load falló (e.g. FK constraint si el user fantasma).
+          // Forzamos signOut también.
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setProfile(null);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      });
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
-      await loadProfile(session?.user ?? null);
+      try {
+        await loadProfile(session?.user ?? null);
+      } catch {
+        setProfile(null);
+      }
     });
     return () => {
       cancelled = true;
+      clearTimeout(failsafe);
       sub.subscription.unsubscribe();
     };
   }, [supabase, loadProfile]);
