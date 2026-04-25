@@ -41,6 +41,9 @@ export function PerfilView() {
           // Identidad visible: email (login email/Google) o phone (login celular).
           // user.phone viene en formato E.164 ("+573001234567"), no formateado.
           identity={user.email ?? user.phone ?? ""}
+          // Display: nombre (lo que pidió en RegisterGate) > username
+          // (handle único, no usado todavía) > fallback en LoggedInHero.
+          nombre={profile?.nombre ?? null}
           username={profile?.username ?? null}
           ciudad={profile?.ciudad ?? null}
           combo={profile?.combo ?? null}
@@ -117,12 +120,14 @@ function LoggedOutHero() {
 
 function LoggedInHero({
   identity,
+  nombre,
   username,
   ciudad,
   combo,
   avatarUrl,
 }: {
   identity: string;
+  nombre: string | null;
   username: string | null;
   ciudad: string | null;
   combo: string | null;
@@ -132,12 +137,12 @@ function LoggedInHero({
   // "+57 300 123 4567". Si es email, lo dejamos como está.
   const isPhone = identity.startsWith("+");
   const displayIdentity = isPhone ? formatPhone(identity) : identity;
-  // Para "username placeholder" cuando no hay username explícito:
-  // - email → la parte antes del @
-  // - phone → los últimos 4 dígitos como handle
+  // Prioridad de display name: nombre (RegisterGate) > username
+  // (handle futuro) > fallback derivado del phone/email.
   const fallbackName = isPhone
     ? `Sureño ${identity.slice(-4)}`
     : (identity.split("@")[0] ?? "Sureño");
+  const displayName = nombre || username || fallbackName;
   return (
     <section className="flex flex-col items-center px-5 py-6">
       {avatarUrl ? (
@@ -164,7 +169,7 @@ function LoggedInHero({
         className="mt-4 text-center uppercase text-white"
         style={{ fontFamily: "var(--font-display), Anton, sans-serif", fontSize: 24, lineHeight: 1 }}
       >
-        {username || fallbackName}
+        {displayName}
       </p>
       <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-white/50">
         {displayIdentity}

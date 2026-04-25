@@ -9,7 +9,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, MapPin, Users } from "lucide-react";
+import { Loader2, MapPin, User as UserIcon, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "./user-provider";
 import { haptic } from "@/lib/haptic";
@@ -28,6 +28,7 @@ const CIUDADES_SUGERIDAS = [
 
 export function RegisterGate() {
   const { user, profile, loading, refreshProfile } = useUser();
+  const [nombre, setNombre] = useState("");
   const [ciudad, setCiudad] = useState("");
   const [ciudadCustom, setCiudadCustom] = useState("");
   const [combo, setCombo] = useState("");
@@ -47,7 +48,12 @@ export function RegisterGate() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const nombreFinal = nombre.trim();
     const ciudadFinal = ciudad === "Otra" ? ciudadCustom.trim() : ciudad;
+    if (nombreFinal.length < 2) {
+      setErr("Decinos cómo te llamás");
+      return;
+    }
     if (!ciudadFinal) {
       setErr("Elegí tu ciudad");
       return;
@@ -63,6 +69,7 @@ export function RegisterGate() {
       .upsert(
         {
           id: user!.id,
+          nombre: nombreFinal,
           ciudad: ciudadFinal,
           combo: combo.trim() || null,
         },
@@ -97,6 +104,25 @@ export function RegisterGate() {
         </p>
 
         <form onSubmit={submit} className="mt-5 flex flex-col gap-4">
+          {/* Nombre */}
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-verde-neon)]">
+              <UserIcon size={12} />
+              ¿CÓMO TE LLAMÁS? *
+            </label>
+            <input
+              type="text"
+              placeholder="Tu nombre o apodo"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              maxLength={40}
+              autoComplete="given-name"
+              autoFocus
+              className="mt-2 h-11 w-full rounded-lg border-2 border-white/20 bg-black px-3 text-[14px] font-semibold tracking-[0.02em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
+              style={{ fontFamily: "var(--font-body)" }}
+            />
+          </div>
+
           {/* Ciudad */}
           <div>
             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-verde-neon)]">
@@ -159,7 +185,12 @@ export function RegisterGate() {
 
           <button
             type="submit"
-            disabled={saving || !ciudad || (ciudad === "Otra" && !ciudadCustom.trim())}
+            disabled={
+              saving ||
+              nombre.trim().length < 2 ||
+              !ciudad ||
+              (ciudad === "Otra" && !ciudadCustom.trim())
+            }
             className="mt-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-[var(--color-verde-neon)] text-[13px] font-extrabold uppercase tracking-[0.08em] text-black disabled:opacity-50"
           >
             {saving ? (

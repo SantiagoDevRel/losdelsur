@@ -5,6 +5,9 @@
 
 export interface Profile {
   id: string;
+  // Display name del sureño (no unique). Se pide en el RegisterGate
+  // junto con ciudad. `username` queda libre para un @handle unico.
+  nombre: string | null;
   username: string | null;
   ciudad: string | null;
   combo: string | null;
