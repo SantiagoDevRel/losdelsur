@@ -1,36 +1,31 @@
 // components/register-gate.tsx
 // Modal que aparece UNA sola vez cuando el user se registra y todavía
-// no tiene `ciudad` seteada en su profile. Pide ciudad (requerido) y
-// combo (opcional). Escribe a `profiles` y refresca el provider.
+// no tiene `ciudad` seteada en su profile. Pide nombre + ciudad
+// (requeridos) y combo (opcional). Escribe a `profiles` y refresca el
+// provider.
 //
 // No se puede cerrar sin completar — es el paso final del registro.
 // Se monta globalmente en el layout; se renderiza como null si no aplica.
+//
+// La ciudad usa autocomplete: el user tipea libre (ej: "med") y le
+// aparecen sugerencias matcheadas (Medellín, Marinilla, etc.). Si no
+// hay match, igual puede escribir su ciudad libre — guardamos lo que
+// haya en el input.
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2, MapPin, User as UserIcon, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { searchCiudades } from "@/lib/ciudades";
 import { useUser } from "./user-provider";
 import { haptic } from "@/lib/haptic";
-
-const CIUDADES_SUGERIDAS = [
-  "Medellín",
-  "Bello",
-  "Itagüí",
-  "Envigado",
-  "Rionegro",
-  "Bogotá",
-  "Cali",
-  "Barranquilla",
-  "Otra",
-];
 
 export function RegisterGate() {
   const { user, profile, loading, refreshProfile } = useUser();
   const [nombre, setNombre] = useState("");
   const [ciudad, setCiudad] = useState("");
-  const [ciudadCustom, setCiudadCustom] = useState("");
+  const [ciudadFocused, setCiudadFocused] = useState(false);
   const [combo, setCombo] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -38,6 +33,20 @@ export function RegisterGate() {
   // Memoizado siempre — debe ir antes de cualquier early return para
   // respetar las reglas de hooks.
   const supabase = useMemo(() => createClient(), []);
+
+  // Sugerencias filtradas por lo que el user tipea. Si el input está
+  // vacío o el match exacto ya está escrito, no mostramos dropdown.
+  const sugerencias = useMemo(() => searchCiudades(ciudad), [ciudad]);
+  const showSugerencias =
+    ciudadFocused &&
+    sugerencias.length > 0 &&
+    // Si lo que escribió ES exactamente una sugerencia, ocultamos
+    // (ya seleccionó esa).
+    !sugerencias.some((s) => s.toLowerCase() === ciudad.trim().toLowerCase());
+
+  // Ref para retrasar el blur — sin esto, el onClick de la sugerencia
+  // no se dispara porque blur cierra el dropdown antes.
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Solo mostrar si está logueado y le falta ciudad. Si profile aún no
   // cargó pero hay user, esperamos (no mostramos modal todavía).
@@ -49,13 +58,13 @@ export function RegisterGate() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const nombreFinal = nombre.trim();
-    const ciudadFinal = ciudad === "Otra" ? ciudadCustom.trim() : ciudad;
+    const ciudadFinal = ciudad.trim();
     if (nombreFinal.length < 2) {
       setErr("Decinos cómo te llamás");
       return;
     }
-    if (!ciudadFinal) {
-      setErr("Elegí tu ciudad");
+    if (ciudadFinal.length < 2) {
+      setErr("Escribí tu ciudad");
       return;
     }
     haptic("tap");
@@ -123,48 +132,74 @@ export function RegisterGate() {
             />
           </div>
 
-          {/* Ciudad */}
-          <div>
+          {/* Ciudad — autocomplete */}
+          <div className="relative">
             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-verde-neon)]">
               <MapPin size={12} />
               ¿DE QUÉ CIUDAD SOS? *
             </label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {CIUDADES_SUGERIDAS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCiudad(c)}
-                  aria-pressed={ciudad === c}
-                  className="whitespace-nowrap px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] transition-all"
-                  style={{
-                    background: ciudad === c ? "var(--color-verde-neon)" : "transparent",
-                    color: ciudad === c ? "#000" : "#ddd",
-                    border: `2px solid ${ciudad === c ? "var(--color-verde-neon)" : "rgba(255,255,255,0.18)"}`,
-                  }}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            {ciudad === "Otra" && (
-              <input
-                type="text"
-                placeholder="Escribí tu ciudad"
-                value={ciudadCustom}
-                onChange={(e) => setCiudadCustom(e.target.value)}
-                className="mt-2 h-11 w-full rounded-lg border-2 border-white/20 bg-black px-3 text-[13px] font-semibold uppercase tracking-[0.03em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
-                style={{ fontFamily: "var(--font-body)" }}
-                autoFocus
-              />
+            <input
+              type="text"
+              placeholder="Empezá a escribir... (ej: med)"
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              onFocus={() => {
+                if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+                setCiudadFocused(true);
+              }}
+              onBlur={() => {
+                // Delay para que el onClick de la sugerencia llegue antes
+                // de cerrar el dropdown.
+                blurTimeoutRef.current = setTimeout(
+                  () => setCiudadFocused(false),
+                  150,
+                );
+              }}
+              maxLength={50}
+              autoComplete="address-level2"
+              role="combobox"
+              aria-expanded={showSugerencias}
+              aria-autocomplete="list"
+              className="mt-2 h-11 w-full rounded-lg border-2 border-white/20 bg-black px-3 text-[14px] font-semibold tracking-[0.02em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
+              style={{ fontFamily: "var(--font-body)" }}
+            />
+            {/* Dropdown de sugerencias */}
+            {showSugerencias && (
+              <ul
+                role="listbox"
+                className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border-2 border-[var(--color-verde-neon)] bg-black shadow-2xl"
+              >
+                {sugerencias.map((s) => (
+                  <li key={s} role="option" aria-selected={ciudad === s}>
+                    <button
+                      type="button"
+                      // onMouseDown en vez de onClick: dispara antes
+                      // que onBlur del input, evitando que el dropdown
+                      // se cierre antes de procesar el click.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setCiudad(s);
+                        setCiudadFocused(false);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.02em] text-white hover:bg-[var(--color-verde-neon)]/15 hover:text-[var(--color-verde-neon)]"
+                      style={{ fontFamily: "var(--font-body)" }}
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.08em] text-white/40">
+              Si no aparece, escribila libre.
+            </p>
           </div>
 
           {/* Combo */}
           <div>
             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-white/60">
               <Users size={12} />
-              ¿DE QUÉ COMBO? <span className="text-white/30">(OPCIONAL)</span>
+              ¿SOS DE ALGÚN COMBO? <span className="text-white/30">(OPCIONAL)</span>
             </label>
             <input
               type="text"
@@ -188,8 +223,7 @@ export function RegisterGate() {
             disabled={
               saving ||
               nombre.trim().length < 2 ||
-              !ciudad ||
-              (ciudad === "Otra" && !ciudadCustom.trim())
+              ciudad.trim().length < 2
             }
             className="mt-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-[var(--color-verde-neon)] text-[13px] font-extrabold uppercase tracking-[0.08em] text-black disabled:opacity-50"
           >
