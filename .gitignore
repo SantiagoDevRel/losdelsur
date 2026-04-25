@@ -55,8 +55,14 @@ next-env.d.ts
 __pycache__/
 *.pyc
 
-# Design handoff — assets source (no deployeados)
-/public/design-assets/
+# public/design-assets/ AHORA SE COMMITEA — el video ambient + poster
+# se sirven desde ahí en producción (ver components/ambient-video.tsx).
+# Si querés excluir bocetos/PSDs grandes de diseño, ponelos en una
+# carpeta aparte tipo `assets/design-source/` (que sí ignoramos).
+# /public/design-assets/
+
+# Source assets de diseño (PSDs, exports grandes) — no van al deploy.
+/assets/design-source/
 
 # JetBrains IDEs (Android Studio crea esta carpeta)
 .idea/
