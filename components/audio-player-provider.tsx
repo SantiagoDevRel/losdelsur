@@ -358,15 +358,18 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     });
     navigator.mediaSession.setActionHandler("previoustrack", prev);
     navigator.mediaSession.setActionHandler("nexttrack", next);
+    // `seekto` queda activado para que la barra de progreso siga
+    // siendo arrastrable desde el lockscreen (gesto deslizante).
     navigator.mediaSession.setActionHandler("seekto", (d) => {
       if (d.seekTime != null) seek(d.seekTime);
     });
-    navigator.mediaSession.setActionHandler("seekforward", (d) => {
-      seek((audioRef.current?.currentTime ?? 0) + (d.seekOffset ?? 10));
-    });
-    navigator.mediaSession.setActionHandler("seekbackward", (d) => {
-      seek((audioRef.current?.currentTime ?? 0) - (d.seekOffset ?? 10));
-    });
+    // IMPORTANTE: desactivamos seekforward/seekbackward (los "<10s"/">10s")
+    // pasando null. Si los dejamos seteados, Android los prioriza en
+    // los slots de botones del lockscreen y notificación, escondiendo
+    // previoustrack/nexttrack. Para una app de cánticos cortos saltar
+    // 10s no tiene sentido — es más útil pasar al siguiente.
+    navigator.mediaSession.setActionHandler("seekforward", null);
+    navigator.mediaSession.setActionHandler("seekbackward", null);
   }, [currentTrack, next, prev, seek]);
 
   // Mantener el playbackState sincronizado con isPlaying.
