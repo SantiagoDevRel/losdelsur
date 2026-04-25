@@ -39,6 +39,15 @@ export function PushOptIn() {
 
   const check = useCallback(async () => {
     if (typeof window === "undefined") return;
+    // Capacitor WebView: Notification y PushManager existen pero
+    // pushManager.subscribe con VAPID no entrega push real (Android
+    // necesita @capacitor/push-notifications con FCM). Mostrar UI
+    // "ACTIVAS" en este contexto sería mentira — ocultar la card.
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) {
+      setState("unsupported");
+      return;
+    }
     if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");
       return;

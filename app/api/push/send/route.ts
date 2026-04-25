@@ -12,11 +12,11 @@
 // Filtros opcionales:
 //   - user_ids: array de UUIDs — solo manda a esos users.
 //   - ciudades: array ["Medellín", "Bogotá"] — solo a esas ciudades.
-//   - all: true — a todas las subscriptions (incluyendo anónimas).
+//   - all: true — a todas las subscriptions.
 
 import { NextResponse } from "next/server";
 import webpush from "web-push";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -57,12 +57,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing title or body" }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  // Admin client (service_role) — bypassa RLS para poder targetear
+  // a cualquier user. Seguro porque ya validamos el admin secret.
+  let supabase;
+  try {
+    supabase = createAdminClient();
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "admin client init failed" },
+      { status: 500 },
+    );
+  }
 
-  // Build query. Nota: acá usamos el anon client pero como la función
-  // está detrás del admin secret, podemos filtrar por user_ids/ciudades
-  // aunque RLS normalmente lo bloquearía. Para una implementación más
-  // seria, convendría usar service_role key — por ahora simple.
   let query = supabase.from("push_subscriptions").select("endpoint, p256dh, auth_token, user_id");
 
   if (body.user_ids && body.user_ids.length > 0) {

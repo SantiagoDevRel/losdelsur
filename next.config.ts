@@ -14,7 +14,10 @@ const withSerwist = withSerwistInit({
   swDest: "public/sw.js",
   // En dev el SW molesta (HMR + SW cache = confusión). Solo prod.
   disable: process.env.NODE_ENV === "development",
-  cacheOnNavigation: true,
+  // cacheOnNavigation:false — manejamos navegaciones explícitamente
+  // con NetworkFirst en sw.ts (matcher request.mode === "navigate").
+  // Tener ambos genera matchers ambiguos.
+  cacheOnNavigation: false,
 });
 
 const nextConfig: NextConfig = {

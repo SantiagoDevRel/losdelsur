@@ -15,7 +15,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { CacheFirst, NetworkFirst, Serwist } from "serwist";
+import { CacheFirst, NetworkFirst, NetworkOnly, Serwist } from "serwist";
 
 // Tipado del scope global del worker.
 declare global {
@@ -33,16 +33,25 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  // Fallback offline a "/" cuando la navegación falla sin red.
+  // Fallback offline a /offline (estático, sin sesión) cuando la
+  // navegación falla sin red. /offline es force-static para que sea
+  // seguro servirlo a cualquier user sin riesgo de mostrar HTML
+  // cacheado de otra sesión.
   fallbacks: {
     entries: [
       {
-        url: "/",
+        url: "/offline",
         matcher: ({ request }) => request.destination === "document",
       },
     ],
   },
   runtimeCaching: [
+    // /api/* siempre va a red. Nunca cachear respuestas autenticadas
+    // (Supabase callbacks, push subscribe, profile updates).
+    {
+      matcher: ({ url }) => url.pathname.startsWith("/api/"),
+      handler: new NetworkOnly(),
+    },
     // Audio: cache-first en su propio cache nombrado.
     {
       matcher: ({ request, url }) =>

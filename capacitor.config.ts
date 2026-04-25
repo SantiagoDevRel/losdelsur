@@ -19,7 +19,11 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.losdelsur.app",
   appName: "Los Del Sur",
-  webDir: "public",
+  // webDir apunta a un stub mínimo (index.html offline-fallback).
+  // Antes era "public" lo que empaquetaba TODOS los audios/videos
+  // en el APK inflando el tamaño y exponiendo assets sin necesidad
+  // (la app real corre desde server.url).
+  webDir: "android-www-stub",
 
   // Wrapper de la PWA deployada a Vercel. Si cambiás de dominio,
   // actualizá acá + en la allowNavigation.

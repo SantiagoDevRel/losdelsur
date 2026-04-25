@@ -1,7 +1,7 @@
 // app/api/push/subscribe/route.ts
 // Guarda la Web Push subscription del browser en Supabase.
-// El cliente obtiene la subscription (endpoint + keys) vía
-// registration.pushManager.subscribe() y la manda acá por POST.
+// Requiere usuario autenticado: las subs anónimas se eliminaron por
+// seguridad (cualquiera podía leer/borrar endpoints+keys ajenos).
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +30,9 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   // Upsert por endpoint (unique). Si el mismo browser se re-suscribe,
   // actualizamos las keys y el user_id en vez de duplicar.
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
     .from("push_subscriptions")
     .upsert(
       {
-        user_id: user?.id ?? null,
+        user_id: user.id,
         endpoint: body.endpoint,
         p256dh: body.keys.p256dh,
         auth_token: body.keys.auth,
@@ -59,7 +62,20 @@ export async function DELETE(request: Request) {
   if (!endpoint) {
     return NextResponse.json({ error: "missing endpoint" }, { status: 400 });
   }
+
   const supabase = await createClient();
-  await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // RLS ya filtra por user_id, pero filtramos explícito (defense in depth).
+  await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint)
+    .eq("user_id", user.id);
   return NextResponse.json({ ok: true });
 }

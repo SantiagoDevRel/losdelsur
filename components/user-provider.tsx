@@ -52,9 +52,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         return;
       }
+      // Enumeramos columnas en vez de select("*") para que cuando
+      // se agreguen columnas con PII (email, teléfono, etc.) no se
+      // filtren por accidente al cliente.
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, nombre, username, ciudad, combo, avatar_url, created_at, updated_at")
         .eq("id", u.id)
         .maybeSingle();
       // Si la query falla (e.g. user fantasma sin auth.users), tiramos
