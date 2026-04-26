@@ -26,6 +26,7 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkLimit, ipFromRequest, pushSendLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,25 @@ export async function POST(request: Request) {
   }
   if (request.headers.get("x-admin-secret") !== adminSecret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Defense in depth: rate limit por IP aunque tengan el secret. Si
+  // el secret leak'ea, esto previene abuso masivo. 10/min es suficiente
+  // para uso legítimo (mandar 1 notif por partido, p.ej.).
+  const ip = ipFromRequest(request);
+  const rl = await checkLimit(pushSendLimit, `admin:${ip}`);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too many requests" },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      },
+    );
   }
 
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;

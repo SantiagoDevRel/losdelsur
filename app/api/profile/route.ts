@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkLimit, profileUpdateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -32,6 +33,23 @@ export async function PATCH(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit por user — 10 PATCHes/min. Edits legítimos son raros,
+  // este cap evita scripts de spam de profile.
+  const rl = await checkLimit(profileUpdateLimit, `user:${user.id}`);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too many requests" },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      },
+    );
   }
 
   // Sanitizar inputs — strings con .trim() y longitud máxima.

@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkLimit, ipFromRequest, pushSubscribeLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,24 @@ interface Body {
 }
 
 export async function POST(request: Request) {
+  // Rate limit por IP — un device legítimo se suscribe una vez. Más de
+  // 5 en un minuto = bot.
+  const ip = ipFromRequest(request);
+  const rl = await checkLimit(pushSubscribeLimit, `ip:${ip}`);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too many requests" },
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      },
+    );
+  }
+
   let body: Body;
   try {
     body = await request.json();
