@@ -1,10 +1,6 @@
 // next.config.ts
 // Configuración de Next envuelta en `withSerwist` para compilar el
 // Service Worker (app/sw.ts -> public/sw.js) durante el build.
-//
-// Headers: cache largo para los mp3 servidos desde /audio/* (1 año,
-// inmutables) para que el navegador los guarde agresivamente incluso
-// fuera del cache del SW.
 
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
@@ -20,20 +16,12 @@ const withSerwist = withSerwistInit({
   cacheOnNavigation: false,
 });
 
-const nextConfig: NextConfig = {
-  async headers() {
-    return [
-      {
-        source: "/audio/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-    ];
-  },
-};
+// Cache del audio: el cache-buster vive en el PATH del archivo (sufijo
+// .vN.m4a — ver scripts/sync-audio.ts y lib/content.ts). El SW client-side
+// hace el caching agresivo offline (CacheFirst en lds-audio-vN). Para
+// el CDN de Vercel, dejamos los defaults de assets estáticos: ETag-based
+// revalidation, sin `immutable` (que cachea 404s para siempre y te bloquea
+// si tocás un path antes de que termine el deploy — pasó una vez).
+const nextConfig: NextConfig = {};
 
 export default withSerwist(nextConfig);
