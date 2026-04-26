@@ -10,7 +10,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { LogIn, LogOut, MapPin, Users } from "lucide-react";
+import { LogIn, LogOut, MapPin, MonitorSmartphone, Users } from "lucide-react";
 import { CacheManager } from "@/components/cache-manager";
 import { CreditsFooter } from "@/components/credits-footer";
 import { InstallCard } from "@/components/install-card";
@@ -191,17 +191,27 @@ function LoggedInHero({
         )}
       </div>
 
-      {/* Logout */}
-      <form action="/auth/sign-out" method="post" className="mt-5">
-        <button
-          type="submit"
+      {/* Sesiones activas + Logout */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Link
+          href="/perfil/sesiones"
           onClick={() => haptic("tap")}
           className="flex items-center gap-1.5 rounded-lg border-2 border-white/15 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70 hover:border-white/30 hover:text-white"
         >
-          <LogOut size={12} />
-          CERRAR SESIÓN
-        </button>
-      </form>
+          <MonitorSmartphone size={12} />
+          DISPOSITIVOS
+        </Link>
+        <form action="/auth/sign-out" method="post">
+          <button
+            type="submit"
+            onClick={() => haptic("tap")}
+            className="flex items-center gap-1.5 rounded-lg border-2 border-white/15 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70 hover:border-white/30 hover:text-white"
+          >
+            <LogOut size={12} />
+            CERRAR SESIÓN
+          </button>
+        </form>
+      </div>
     </section>
   );
 }

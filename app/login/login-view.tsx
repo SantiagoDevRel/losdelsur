@@ -19,6 +19,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, Mail, MessageCircle, Phone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { haptic } from "@/lib/haptic";
+import {
+  SessionConflictModal,
+  type ConflictKind,
+} from "@/components/session-conflict-modal";
 
 // Países más probables para los sureños. Si elegís "Otro" cargás el
 // código manualmente. Default: +57 Colombia.
@@ -47,6 +51,7 @@ export function LoginView() {
   const [sending, setSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<ConflictKind | null>(null);
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/perfil";
 
@@ -54,11 +59,35 @@ export function LoginView() {
   const supabase = useMemo(() => createClient(), []);
 
   // Si llegan a /login con ?error=auth (callback OAuth fallido), mostrar.
+  // Si llegan con ?conflict=... (magic link rechazado por slot ocupado /
+  // cooldown / cap), mostrar el modal correspondiente.
+  /* eslint-disable react-hooks/set-state-in-effect -- query params → estado UI inicial */
   useEffect(() => {
     if (searchParams.get("error") === "auth") {
       setErr("No se pudo completar el inicio de sesión. Probá de nuevo.");
+      return;
+    }
+    if (searchParams.get("error") === "kicked") {
+      setErr("Tu sesión se cerró desde otro dispositivo. Volvé a entrar si querés seguir acá.");
+      return;
+    }
+    const c = searchParams.get("conflict");
+    if (c === "cooldown") {
+      const retryAt = searchParams.get("retryAt");
+      const currentDevice = searchParams.get("currentDevice");
+      const currentSince = searchParams.get("currentSince");
+      if (retryAt && currentDevice && currentSince) {
+        setConflict({ kind: "cooldown", currentDevice, currentSince, retryAt });
+      }
+    } else if (c === "monthly_limit") {
+      const unlockAt = searchParams.get("unlockAt");
+      const switchesUsed = Number(searchParams.get("switchesUsed") ?? "0");
+      if (unlockAt) {
+        setConflict({ kind: "monthly_limit", switchesUsed, limit: 3, unlockAt });
+      }
     }
   }, [searchParams]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ----- Phone OTP -----
 
@@ -125,9 +154,80 @@ export function LoginView() {
       return;
     }
     haptic("double");
-    // El UserProvider detecta el cambio de sesión y refresca; si falta
-    // ciudad, RegisterGate aparece. Solo redirigimos a `next`.
-    window.location.href = nextParam;
+    // Antes de redirigir, registramos esta sesión en user_sessions para
+    // hacer cumplir la regla "1 mobile + 1 desktop" + cooldown + cap.
+    await registerSessionAndRedirect();
+  }
+
+  // Registra la sesión actual en /api/sessions/register. Si todo OK,
+  // redirige a `next`. Si hay conflicto, muestra modal apropiado.
+  async function registerSessionAndRedirect(force = false) {
+    const res = await fetch(
+      `/api/sessions/register${force ? "?force=true" : ""}`,
+      { method: "POST" },
+    );
+    if (res.ok) {
+      window.location.href = nextParam;
+      return;
+    }
+    if (res.status === 401) {
+      setErr("No se pudo verificar la sesión. Probá de nuevo.");
+      return;
+    }
+    const body = (await res.json().catch(() => null)) as
+      | {
+          error?: string;
+          currentDevice?: string;
+          currentSince?: string;
+          retryAt?: string;
+          switchesUsed?: number;
+          limit?: number;
+          unlockAt?: string;
+        }
+      | null;
+    if (!body) {
+      setErr("Error registrando la sesión. Probá más tarde.");
+      return;
+    }
+
+    if (body.error === "monthly_limit" && body.unlockAt) {
+      setConflict({
+        kind: "monthly_limit",
+        switchesUsed: body.switchesUsed ?? 0,
+        limit: body.limit ?? 3,
+        unlockAt: body.unlockAt,
+      });
+    } else if (body.error === "cooldown" && body.retryAt && body.currentDevice) {
+      setConflict({
+        kind: "cooldown",
+        currentDevice: body.currentDevice,
+        currentSince: body.currentSince ?? new Date().toISOString(),
+        retryAt: body.retryAt,
+      });
+    } else if (body.error === "conflict" && body.currentDevice) {
+      setConflict({
+        kind: "conflict",
+        currentDevice: body.currentDevice,
+        currentSince: body.currentSince ?? new Date().toISOString(),
+      });
+    } else {
+      setErr(body.error ?? "Error registrando la sesión.");
+    }
+  }
+
+  async function handleConflictConfirm() {
+    await registerSessionAndRedirect(true);
+  }
+
+  async function handleConflictCancel() {
+    setConflict(null);
+    // El user canceló el reemplazo → cerramos su sesión local para que no
+    // quede a medio loguear (cookie con auth pero sin user_sessions row).
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      /* noop */
+    }
   }
 
   // ----- Email magic link -----
@@ -409,6 +509,14 @@ export function LoginView() {
           POLÍTICA DE PRIVACIDAD
         </Link>
       </p>
+
+      {conflict && (
+        <SessionConflictModal
+          data={conflict}
+          onConfirm={handleConflictConfirm}
+          onCancel={handleConflictCancel}
+        />
+      )}
     </main>
   );
 }

@@ -5,5 +5,6 @@
   "subtitulo": "Volumen II",
   "color": "#1AD46E",
   "año": "2003",
-  "cover_image": "/covers/cd2.jpg"
+  "cover_image": "/covers/cd2.jpg",
+  "audio_version": 2
 }

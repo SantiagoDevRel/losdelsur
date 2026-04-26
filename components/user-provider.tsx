@@ -135,6 +135,43 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase, loadProfile]);
 
+  // Heartbeat: cada 2 min preguntamos si nuestra sesión sigue válida.
+  // Si otro device nos kickeó (replace en user_sessions) → /api/sessions/heartbeat
+  // devuelve {valid:false} → forzamos signOut local + redirect a login.
+  // Solo polea cuando hay user activo.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    async function check() {
+      try {
+        const res = await fetch("/api/sessions/heartbeat", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { valid: boolean; reason?: string };
+        if (cancelled) return;
+        if (!data.valid && data.reason === "kicked") {
+          // Otro device nos sacó. SignOut limpio + redirect con mensaje.
+          await supabase.auth.signOut().catch(() => {});
+          if (typeof window !== "undefined") {
+            window.location.href = "/login?error=kicked";
+          }
+        }
+      } catch {
+        // Red caída — silencioso, reintenta en próximo tick.
+      }
+    }
+
+    // Primer check al montar (post-login) + cada 2 min.
+    void check();
+    timer = setInterval(check, 2 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [user, supabase]);
+
   return (
     <Ctx.Provider value={{ user, profile, loading, refreshProfile }}>
       {children}
