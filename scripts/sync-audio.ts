@@ -1,14 +1,21 @@
 // scripts/sync-audio.ts
 // Copia de `content/` a `public/`:
-//   - `content/cdN/<NN-slug>/audio.mp3`
-//       →  `public/audio/cdN/<NN-slug>.mp3`
+//   - `content/cdN/<NN-slug>/audio.m4a`
+//       →  `public/audio/cdN/<NN-slug>.m4a`         (audio_version=1 o ausente)
+//       →  `public/audio/cdN/<NN-slug>.vN.m4a`      (audio_version >= 2)
 //   - imagen suelta en la raíz de `content/cdN/` (cover.*, cdN_foo.jpg, etc.)
 //       →  `public/covers/cdN.<ext>`
+//
+// El sufijo .vN en el filename es CACHE BUSTER. Vercel CDN cachea
+// agresivamente por path (ignorando query strings), así que cambiar
+// el path es la única forma confiable de invalidar el cache cuando
+// re-encodeamos audio. Para version 1 mantenemos el nombre pelado
+// para compatibilidad con clientes viejos cacheados.
 //
 // Se corre automático en `prebuild` y a mano con `npm run sync-audio`
 // cuando Santiago agrega archivos nuevos.
 
-import { mkdirSync, readdirSync, copyFileSync, statSync, existsSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, copyFileSync, statSync, existsSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 
 const CONTENT_ROOT = resolve(process.cwd(), "content");
@@ -25,25 +32,37 @@ function listCDDirs(): string[] {
   });
 }
 
+// Lee audio_version del cd.json. Default 1 (audio legacy sin versión en path).
+function readAudioVersion(cdDir: string): number {
+  const cdJson = join(cdDir, "cd.json");
+  if (!existsSync(cdJson)) return 1;
+  try {
+    const meta = JSON.parse(readFileSync(cdJson, "utf-8"));
+    const v = typeof meta.audio_version === "number" ? meta.audio_version : 1;
+    return v >= 1 ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+
 function syncAudio(): number {
   let copied = 0;
   for (const cdName of listCDDirs()) {
     const cdDir = join(CONTENT_ROOT, cdName);
+    const audioVersion = readAudioVersion(cdDir);
+    const versionSuffix = audioVersion >= 2 ? `.v${audioVersion}` : "";
     const dest = join(PUBLIC_AUDIO, cdName);
     mkdirSync(dest, { recursive: true });
     for (const entry of readdirSync(cdDir)) {
       const songDir = join(cdDir, entry);
       if (!statSync(songDir).isDirectory()) continue;
-      // Preferimos audio.m4a (AAC 64k mono, ~50% más chico). Si hay
-      // legacy audio.mp3 sin re-comprimir, también lo copiamos como
-      // fallback para que playback no rompa.
       const m4a = join(songDir, "audio.m4a");
       const mp3 = join(songDir, "audio.mp3");
       if (existsSync(m4a)) {
-        copyFileSync(m4a, join(dest, `${entry}.m4a`));
+        copyFileSync(m4a, join(dest, `${entry}${versionSuffix}.m4a`));
         copied++;
       } else if (existsSync(mp3)) {
-        copyFileSync(mp3, join(dest, `${entry}.mp3`));
+        copyFileSync(mp3, join(dest, `${entry}${versionSuffix}.mp3`));
         copied++;
       }
     }

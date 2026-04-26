@@ -111,15 +111,15 @@ function loadCD(dirName: string): CD {
       const hasRealLetra =
         letra.length >= 50 && !/pendiente de transcripci/i.test(letra);
       const ready = Boolean(hasRealLetra && letra_timed && letra_timed.length > 0);
-      // URL pública del audio: /audio/cdN/NN-slug.m4a (AAC 128k stereo
-      // a partir de audio_version=2; antes era 64k mono).
-      // El script sync-audio copia los archivos con ese esquema.
-      // Append `?v=N` cuando audio_version > 1 para bustear el cache
-      // CDN + SW cuando re-encodeamos un CD.
+      // URL pública del audio: /audio/cdN/NN-slug.m4a (legacy v1) o
+      // /audio/cdN/NN-slug.vN.m4a (versión re-encodeada). El sufijo
+      // .vN es CACHE BUSTER por path — Vercel CDN ignora query params
+      // para asset cache, así que cambiar el path es la única forma
+      // confiable de invalidar.
       const v = cdMeta.audio_version ?? 1;
       const audio_url =
-        v > 1
-          ? `/audio/${cdMeta.id}/${songDir}.m4a?v=${v}`
+        v >= 2
+          ? `/audio/${cdMeta.id}/${songDir}.v${v}.m4a`
           : `/audio/${cdMeta.id}/${songDir}.m4a`;
       const cancion: Cancion = {
         id: raw.id,
