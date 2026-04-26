@@ -154,9 +154,25 @@ export function SessionConflictModal({ data, onConfirm, onCancel }: Props) {
               <span className="font-extrabold text-white">{data.currentDevice}</span>{" "}
               desde {formatDate(data.currentSince)}.
             </p>
-            <p className="mt-3 text-[12px] font-medium uppercase leading-snug tracking-[0.04em] text-white/70">
-              Si entrás acá, esa sesión se cierra automáticamente.
-            </p>
+            {/* Advertencia explícita de la consecuencia: el otro device queda
+                bloqueado 24h. Esto es lo que hace que la regla "1+1" tenga
+                dientes — sin esto el user no entiende el costo del switch. */}
+            <div className="mt-3 rounded-lg border-2 border-yellow-500/40 bg-yellow-500/10 p-3">
+              <p className="text-[12px] font-extrabold uppercase leading-snug tracking-[0.04em] text-yellow-200">
+                ⚠️ SI ENTRÁS ACÁ:
+              </p>
+              <ul className="mt-2 space-y-1.5 text-[11px] font-medium uppercase leading-snug tracking-[0.03em] text-white/80">
+                <li>
+                  ·{" "}
+                  <span className="font-extrabold text-white">{data.currentDevice}</span>{" "}
+                  se desloguea AUTOMÁTICAMENTE.
+                </li>
+                <li>
+                  · No va a poder volver a entrar por <span className="font-extrabold text-yellow-300">24 horas</span>.
+                </li>
+                <li>· Solo te quedan 2 cambios más este mes.</li>
+              </ul>
+            </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -178,7 +194,7 @@ export function SessionConflictModal({ data, onConfirm, onCancel }: Props) {
                     CAMBIANDO
                   </>
                 ) : (
-                  "ENTRAR ACÁ"
+                  "SÍ, ENTRAR ACÁ"
                 )}
               </button>
             </div>
