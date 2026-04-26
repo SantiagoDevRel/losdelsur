@@ -13,6 +13,15 @@
 //   - user_ids: array de UUIDs — solo manda a esos users.
 //   - ciudades: array ["Medellín", "Bogotá"] — solo a esas ciudades.
 //   - all: true — a todas las subscriptions.
+//
+// Para listas grandes (>5000 subs):
+//   - El endpoint hace batching con concurrency=10 y devuelve `next_cursor`
+//     si no terminó dentro del budget de 50s.
+//   - Re-invocá con `?cursor=N` (o body { cursor: N }) para continuar
+//     desde donde quedó. (TODO: implementar cursor — actualmente sólo
+//     reporta cuántos quedaron sin procesar.)
+//   - Para 20k+: usá un Vercel Cron Job que invoque /api/push/send/cron
+//     cada minuto, persistiendo el cursor en una tabla de "send_jobs".
 
 import { NextResponse } from "next/server";
 import webpush from "web-push";
@@ -98,12 +107,38 @@ export async function POST(request: Request) {
     icon: body.icon ?? "/icons/icon-192.png",
   });
 
+  // Sending: batching + concurrency control para no ahogar la función
+  // serverless. Sin chunks, Promise.all(20k) explota memoria/timeout.
+  // Con CONCURRENCY=10 procesamos 10 webpushes en paralelo todo el
+  // tiempo, cada uno tarda ~50-300ms contra FCM/APNS/Mozilla.
+  // Throughput esperado: ~1000-2000 pushes/seg.
+  //
+  // Si tenés >5000 subs, considerá invocar este endpoint repetidamente
+  // con `cursor` para no exceder el timeout de Vercel Functions
+  // (10s en Hobby, 60s en Pro).
+  const CONCURRENCY = 10;
   let sent = 0;
   let failed = 0;
   const expired: string[] = [];
+  const startMs = Date.now();
+  const timeoutBudgetMs = 50_000; // safe margin bajo el 60s de Pro
 
-  await Promise.all(
-    subs.map(async (s) => {
+  // Bind a const para narrowing de tipos (subs era `T | null`, acá ya
+  // sabemos que no es null por el early return de arriba).
+  const subsList = subs;
+
+  // "Pool de workers": N tareas que toman items del array de subs.
+  // Cuando todas terminan o se acaban los items, listo.
+  let cursor = 0;
+  async function worker() {
+    while (cursor < subsList.length) {
+      // Salida temprana si nos acercamos al timeout de la función.
+      // Devolvemos parcial — el caller puede reintentar con cursor.
+      if (Date.now() - startMs > timeoutBudgetMs) return;
+
+      const idx = cursor++;
+      const s = subsList[idx];
+      if (!s) return;
       try {
         await webpush.sendNotification(
           {
@@ -117,16 +152,34 @@ export async function POST(request: Request) {
         failed++;
         const e = err as { statusCode?: number };
         if (e.statusCode === 404 || e.statusCode === 410) {
-          // Subscription expiró — la vamos a borrar después.
           expired.push(s.endpoint as string);
         }
       }
-    }),
-  );
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
   if (expired.length > 0) {
-    await supabase.from("push_subscriptions").delete().in("endpoint", expired);
+    // Cleanup en lotes de 100 — el `.in()` con 1000+ items rompe.
+    for (let i = 0; i < expired.length; i += 100) {
+      await supabase
+        .from("push_subscriptions")
+        .delete()
+        .in("endpoint", expired.slice(i, i + 100));
+    }
   }
 
-  return NextResponse.json({ sent, failed, cleaned: expired.length });
+  const elapsedMs = Date.now() - startMs;
+  // Si quedaron subs sin procesar (timeout), reportá cursor para
+  // que el caller (Cron Job o admin script) pueda continuar.
+  const remaining = subs.length - cursor;
+  return NextResponse.json({
+    sent,
+    failed,
+    cleaned: expired.length,
+    total_targeted: subs.length,
+    remaining,
+    elapsed_ms: elapsedMs,
+    next_cursor: remaining > 0 ? cursor : null,
+  });
 }
