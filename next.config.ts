@@ -22,6 +22,25 @@ const withSerwist = withSerwistInit({
 // el CDN de Vercel, dejamos los defaults de assets estáticos: ETag-based
 // revalidation, sin `immutable` (que cachea 404s para siempre y te bloquea
 // si tocás un path antes de que termine el deploy — pasó una vez).
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  // CRITICAL: Vercel hace "file tracing" de las serverless functions para
+  // determinar qué archivos incluir en el bundle. lib/content.ts hace
+  // readFileSync de paths dentro de content/, así que Next por defecto
+  // incluye TODA la carpeta content/ — incluyendo los .m4a (~350 MB con
+  // 128k stereo). La función opengraph-image quedaba en 326 MB,
+  // excediendo el límite de 300 MB de Vercel.
+  //
+  // Los audios NO los necesita ninguna función (se sirven como static
+  // desde public/audio/, copiados por sync-audio.ts en prebuild).
+  // Los excluimos del tracing para mantener las funciones livianas.
+  outputFileTracingExcludes: {
+    "*": [
+      "content/**/*.m4a",
+      "content/**/*.mp3",
+      "content/**/*.legacy.*",
+      "content/**/*.xlsx",
+    ],
+  },
+};
 
 export default withSerwist(nextConfig);
