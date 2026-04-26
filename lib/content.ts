@@ -111,16 +111,20 @@ function loadCD(dirName: string): CD {
       const hasRealLetra =
         letra.length >= 50 && !/pendiente de transcripci/i.test(letra);
       const ready = Boolean(hasRealLetra && letra_timed && letra_timed.length > 0);
-      // URL pública del audio: /audio/cdN/NN-slug.m4a (legacy v1) o
-      // /audio/cdN/NN-slug.vN.m4a (versión re-encodeada). El sufijo
-      // .vN es CACHE BUSTER por path — Vercel CDN ignora query params
-      // para asset cache, así que cambiar el path es la única forma
-      // confiable de invalidar.
+      // URL pública del audio: servimos desde Cloudflare R2 (egress free,
+      // global edge). Path tiene el sufijo .vN que actúa como cache
+      // buster cuando re-encodeamos un CD.
+      //
+      // Si NEXT_PUBLIC_R2_PUBLIC_URL no está seteado (build local de
+      // emergencia), caemos al path interno /audio/* — pero en deploy
+      // normal SIEMPRE sale por R2.
       const v = cdMeta.audio_version ?? 1;
-      const audio_url =
-        v >= 2
-          ? `/audio/${cdMeta.id}/${songDir}.v${v}.m4a`
-          : `/audio/${cdMeta.id}/${songDir}.m4a`;
+      const r2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
+      const filename =
+        v >= 2 ? `${songDir}.v${v}.m4a` : `${songDir}.m4a`;
+      const audio_url = r2Base
+        ? `${r2Base}/${cdMeta.id}/${filename}`
+        : `/audio/${cdMeta.id}/${filename}`;
       const cancion: Cancion = {
         id: raw.id,
         numero: raw.numero,

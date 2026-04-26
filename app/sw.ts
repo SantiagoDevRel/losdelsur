@@ -52,10 +52,15 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
     },
-    // Audio: cache-first en su propio cache nombrado.
+    // Audio: cache-first en su propio cache nombrado. Match para:
+    //  - /audio/* (legacy local, antes de R2)
+    //  - audio destination (HTMLAudioElement fetch, cualquier origen)
+    //  - r2.dev (donde sirve Cloudflare ahora)
     {
       matcher: ({ request, url }) =>
-        request.destination === "audio" || url.pathname.startsWith("/audio/"),
+        request.destination === "audio" ||
+        url.pathname.startsWith("/audio/") ||
+        url.hostname.endsWith(".r2.dev"),
       handler: new CacheFirst({
         cacheName: "lds-audio-v1",
       }),

@@ -1,19 +1,15 @@
 // scripts/sync-audio.ts
 // Copia de `content/` a `public/`:
-//   - `content/cdN/<NN-slug>/audio.m4a`
-//       →  `public/audio/cdN/<NN-slug>.m4a`         (audio_version=1 o ausente)
-//       →  `public/audio/cdN/<NN-slug>.vN.m4a`      (audio_version >= 2)
-//   - imagen suelta en la raíz de `content/cdN/` (cover.*, cdN_foo.jpg, etc.)
-//       →  `public/covers/cdN.<ext>`
+//   - imagen de cover: content/cdN/<cover>.jpg → public/covers/cdN.<ext>
+//   - audio.m4a → public/audio/cdN/<NN-slug>.vN.m4a  (SOLO local, no
+//     se sirve desde Vercel; los audios de prod viven en R2)
 //
-// El sufijo .vN en el filename es CACHE BUSTER. Vercel CDN cachea
-// agresivamente por path (ignorando query strings), así que cambiar
-// el path es la única forma confiable de invalidar el cache cuando
-// re-encodeamos audio. Para version 1 mantenemos el nombre pelado
-// para compatibilidad con clientes viejos cacheados.
+// Audio en producción vive en Cloudflare R2 (subido con upload-to-r2.py).
+// Esta sync mantiene la copia local por si Santiago corre `next dev`
+// sin internet o quiere preview offline. Los audios LOCALES NO van al
+// build de Vercel — están en .gitignore y outputFileTracingExcludes.
 //
-// Se corre automático en `prebuild` y a mano con `npm run sync-audio`
-// cuando Santiago agrega archivos nuevos.
+// Se corre automático en `prebuild` y a mano con `npm run sync-audio`.
 
 import { mkdirSync, readdirSync, readFileSync, copyFileSync, statSync, existsSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
