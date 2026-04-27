@@ -1,12 +1,13 @@
 // app/login/login-view.tsx
-// Login con dos métodos:
-//   1. CELULAR (OTP) — primario. Para sureños sin gmail.
-//      Usa Supabase Phone Auth (con SMS por Twilio o WhatsApp por
-//      Twilio Business / Cloud API). Cambiar de SMS a WhatsApp es solo
-//      un toggle en Supabase Dashboard sin tocar este código.
-//   2. EMAIL (magic link) — secundario.
-//
-// El flow del celular es 2 pasos: pedir el OTP, luego verificarlo.
+// Login con tres métodos:
+//   1. CELULAR (SMS OTP) — primario. Twilio via Supabase Phone Auth.
+//   2. WhatsApp magic-link — fallback gratis. Si el SMS no llega o sale
+//      caro, el user toca "¿No te llega? Probá con WhatsApp" → abre el
+//      bot por wa.me, manda un mensaje, recibe botón CTA con un link
+//      de un solo uso (10min). Cuesta $0 dentro de la ventana de servicio
+//      de 24h iniciada por el user (Meta Cloud API). Ver
+//      app/api/whatsapp/webhook + app/api/auth/wa-magic.
+//   3. EMAIL (magic link) — secundario.
 //
 // Google OAuth fue removido — la mayoría de los sureños no usa gmail
 // y mantener un botón roto era peor UX que no tenerlo.
@@ -279,6 +280,19 @@ export function LoginView() {
     }
   }
 
+  // ----- WhatsApp magic-link (fallback) -----
+
+  // Construye el wa.me URL para abrir el chat del bot. El text= prepopula
+  // el mensaje que el user va a mandar — el webhook matchea contra ese
+  // texto para discriminar de otras apps que usen el mismo bot.
+  function whatsappLoginUrl(): string | null {
+    const bot = process.env.NEXT_PUBLIC_WHATSAPP_BOT_NUMBER;
+    if (!bot) return null;
+    const cleaned = bot.replace(/\D/g, "");
+    const text = encodeURIComponent("Quiero entrar a Los del Sur");
+    return `https://wa.me/${cleaned}?text=${text}`;
+  }
+
   // ----- Email magic link -----
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -485,6 +499,22 @@ export function LoginView() {
               "ENTRAR"
             )}
           </button>
+
+          {/* Fallback WhatsApp: si el SMS no llega, este link abre el
+              chat del bot. El user manda el msg, el bot responde con
+              un botón de un solo uso. Solo se muestra si está
+              configurado el número del bot. */}
+          {whatsappLoginUrl() && (
+            <a
+              href={whatsappLoginUrl()!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-white/20 bg-transparent text-[11px] font-bold uppercase tracking-[0.08em] text-white/80 transition-colors hover:border-[var(--color-verde-neon)] hover:text-[var(--color-verde-neon)]"
+            >
+              <MessageCircle size={14} />
+              ¿NO TE LLEGA? PROBÁ POR WHATSAPP
+            </a>
+          )}
         </form>
       )}
 

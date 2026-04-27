@@ -14,7 +14,7 @@ Letras + audio offline + cuentas sincronizadas + notificaciones push.
 - **Frontend:** Next.js 16 (App Router, webpack), React 19, TypeScript.
 - **Estilos:** Tailwind v4 + shadcn/ui + base-ui + lucide-react.
 - **PWA / Offline:** `@serwist/next` (Service Worker + cache API).
-- **Auth:** Supabase Auth (Phone OTP via Twilio + magic link email).
+- **Auth:** Supabase Auth (Phone OTP via Twilio + WhatsApp magic-link via Meta Cloud API + magic link email).
 - **DB:** Supabase Postgres (RLS habilitado en todas las tablas).
 - **Audio storage:** Cloudflare R2 (egress free, escala infinita).
 - **Search:** Fuse.js (client-side, fuzzy).
@@ -50,8 +50,12 @@ https://pub-xxx.r2.dev/cdN/SLUG.vN.m4a   ← URL en la app
 
 ### Auth + perfil
 
-- **Login:** primary tab celular (Twilio SMS OTP), secondary email
-  magic link. Google OAuth eliminado (la mayoría no usa gmail).
+- **Login:** primary tab celular (Twilio SMS OTP). Debajo del input de
+  OTP aparece un fallback **"¿No te llega? Probá por WhatsApp"** que abre
+  el bot por `wa.me/`; el user manda un msg, el bot responde con un botón
+  CTA con magic-link de un solo uso (10min). Costo: $0 dentro de la
+  ventana de servicio de 24h iniciada por el user (Meta Cloud API).
+  Secondary tab email magic link. Google OAuth eliminado.
 - **Registro:** modal `RegisterGate` aparece al primer login y bloquea
   hasta completar **nombre + ciudad** (autocomplete con 95 ciudades
   colombianas + algunas internacionales). Combo opcional.
@@ -140,10 +144,12 @@ Pendientes:
 
 - **Supabase Phone provider:** activado con Twilio SMS.
   Trial Twilio = $15 USD = ~270 SMS gratis. Después $0.054/SMS.
-- **Migración a WhatsApp Cloud API**: documentada en
-  [`docs/AUTH-SETUP.md`](docs/AUTH-SETUP.md). Cambio de 2 strings cuando
-  Meta Business apruebe el número (usa cuenta business existente de
-  la-polla app, ahorra 5-7 días de aprobación).
+- **WhatsApp magic-link (fallback gratis):** flujo propio vía Meta Cloud
+  API. Tablas: `wa_magic_tokens` (one-shot, 10min TTL) + RPC
+  `find_auth_user_id_by_phone` para deduplicar accounts SMS↔WA.
+  Endpoints: `/api/whatsapp/webhook` (HMAC verificado) y
+  `/api/auth/wa-magic`. Setup completo en [`docs/AUTH-SETUP.md`](docs/AUTH-SETUP.md)
+  sección 1.5. Requiere SIM dedicado + Meta Business app.
 - **Email magic link**: funciona out-of-the-box vía Supabase Auth.
 - **Google OAuth**: removido. La mayoría de sureños no usa gmail.
 

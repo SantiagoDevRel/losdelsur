@@ -7,6 +7,7 @@ Estado actual de la app:
 |--------|--------|-----------|
 | Email magic link | ✅ Activo | — |
 | Celular (SMS OTP) | ⚠️ Código listo, falta config Twilio | Twilio + Supabase Phone Provider |
+| WhatsApp magic-link (fallback gratis) | ⚠️ Código listo, falta SIM nuevo + Meta Business | Meta WhatsApp Cloud API + número dedicado |
 | Google OAuth | ⚠️ Código listo, escondido por flag | Google Cloud + Supabase Google Provider |
 
 ---
@@ -77,6 +78,116 @@ WhatsApp es ~30% más barato que SMS para Colombia y se siente mucho más natura
 - 100 logins/mes ≈ $5.40 USD.
 - 1000 logins/mes ≈ $54 USD.
 - **Mitigación**: Supabase rate-limita a 1 OTP cada 60s por número, evita spam.
+
+---
+
+## 1.5. WhatsApp magic-link (RECOMENDADO como fallback gratis del SMS)
+
+Mismo flujo que la-polla: el user toca **"¿No te llega? Probá por WhatsApp"** debajo del input de OTP. Eso abre el chat del bot por `wa.me/`. El user manda **"Quiero entrar a Los del Sur"**, el bot responde con un botón **ENTRAR**, el user toca → adentro. El link sirve 10 minutos y solo una vez.
+
+### Por qué ahorra plata
+
+- Twilio SMS Colombia: ~$0.054 USD por mensaje.
+- Meta Cloud API: cuando la conversación la **inicia el user** (mensaje entrante), las respuestas del negocio (utility) caen en una **ventana de servicio gratuita de 24h**. Para auth eso siempre se cumple — el user manda primero, el bot responde con el botón.
+- Resultado: cada login por WA cuesta **$0** en lugar de $0.054. 1000 logins/mes = $54 ahorrados.
+
+### Prerrequisitos
+
+- Una **SIM card nueva** (número dedicado para el bot — NO usar tu personal).
+- Cuenta Meta Business (gratis).
+- Acceso al dashboard de Vercel del proyecto.
+- La migración SQL `supabase/migrations/001_wa_magic_auth.sql` corrida en el dashboard de Supabase.
+
+### Step-by-step (~30 min en total)
+
+#### Parte A — Supabase: correr la migración (2 min)
+
+1. Abrí https://supabase.com/dashboard/project/jivsjazbbihmyydemmht/sql.
+2. Pegá el contenido de `supabase/migrations/001_wa_magic_auth.sql`.
+3. Run. Verificá que crea `public.wa_magic_tokens` y la función `find_auth_user_id_by_phone`.
+
+#### Parte B — Meta Business: setear la app y el número (~20 min)
+
+1. **Crear cuenta Meta Business**:
+   - https://business.facebook.com → Crear cuenta business si no tenés.
+2. **Crear app de WhatsApp Business**:
+   - https://developers.facebook.com/apps → "Create App" → tipo **"Business"**.
+   - Nombre: `Los del Sur`. Email de contacto: el tuyo.
+   - Una vez creada, en el menú lateral → **Add product** → buscar **WhatsApp** → Set up.
+3. **Conectar tu número**:
+   - WhatsApp → API Setup. Te genera un número de prueba gratis para los primeros tests, pero ese caduca y solo manda a 5 destinatarios.
+   - Para producción: en API Setup → **Add phone number** → escribir el número de la SIM nueva (E.164, ej `+573001234567`) → Meta manda código de verificación al SIM → metés el código.
+   - Importante: el SIM **no puede** estar activo en WhatsApp normal (ni Business). Si ya lo está, primero desinstalalo de ese teléfono.
+4. **Anotar credenciales** (vas a necesitarlas para Vercel):
+   - **App Secret**: App Settings → Basic → **App Secret** (botón Show). Esto es el `META_WA_APP_SECRET`.
+   - **Phone Number ID**: WhatsApp → API Setup → arriba del todo, "From" tiene un dropdown con tu número y abajo dice **Phone number ID** (un número largo). Eso es `META_WA_PHONE_NUMBER_ID`.
+   - **Permanent Access Token**: API Setup te da un "Temporary access token" (24h, sirve para tests). Para prod necesitás un **System User Token permanente**:
+     - Business Settings (https://business.facebook.com/settings) → Users → System users → Add → nombre `losdelsur-bot`, role Admin.
+     - Click en el system user → Generate New Token → seleccionar tu app → permisos: `whatsapp_business_messaging` y `whatsapp_business_management` → Never expires → Generate.
+     - Copiar el token (solo se ve una vez). Eso es `META_WA_ACCESS_TOKEN`.
+   - **Asignar la app y el número al system user**: Business Settings → System Users → tu user → Add Assets → seleccionar tu app y tu WhatsApp Business Account.
+5. **Webhook Verify Token**: lo inventás vos. Cualquier string random (ej `lds-wa-verify-9k2h7x4`). Eso es `META_WA_WEBHOOK_VERIFY_TOKEN`.
+
+#### Parte C — Vercel: setear env vars (5 min)
+
+En el dashboard de Vercel del proyecto → Settings → Environment Variables, agregar (todas en **Production + Preview + Development**):
+
+```
+META_WA_ACCESS_TOKEN          = <token permanente del system user>
+META_WA_PHONE_NUMBER_ID       = <phone number id del bot>
+META_WA_WEBHOOK_VERIFY_TOKEN  = <string random que inventaste>
+META_WA_APP_SECRET            = <app secret>
+NEXT_PUBLIC_WHATSAPP_BOT_NUMBER = 573001234567
+NEXT_PUBLIC_APP_URL           = https://losdelsur.vercel.app
+```
+
+Notas:
+- `NEXT_PUBLIC_WHATSAPP_BOT_NUMBER`: E.164 sin `+`. Es público (lo lee el cliente para construir el link `wa.me/`).
+- `NEXT_PUBLIC_APP_URL`: dominio público. Si usás dominio custom (ej `losdelsur.com`), usá ese. Sin trailing slash.
+- Las otras 4 son **server-only** (no lleves prefix `NEXT_PUBLIC_`). Críticas: si filtran, alguien puede impersonar a Meta o mandar mensajes desde tu bot.
+
+#### Parte D — Push & deploy
+
+```bash
+git push origin main
+```
+
+Vercel detecta el push y deploya con las nuevas env vars. Una vez verde:
+
+#### Parte E — Configurar el webhook en Meta (3 min)
+
+1. WhatsApp → Configuration → Webhook → **Edit**.
+2. **Callback URL**: `https://losdelsur.vercel.app/api/whatsapp/webhook` (o tu dominio custom).
+3. **Verify token**: el mismo string random que pusiste en `META_WA_WEBHOOK_VERIFY_TOKEN`.
+4. Verify and save → Meta hace un GET al endpoint y debe responder 200 con el challenge.
+5. Una vez verificado, abajo aparece **Webhook fields** → **Manage** → tildar **`messages`** → Save.
+
+#### Parte F — Smoke test
+
+1. Desde tu propio celular, mandale al bot por WhatsApp el texto: **"Quiero entrar a Los del Sur"**.
+2. El bot debería responder con un mensaje + botón **ENTRAR** en ~2 segundos.
+3. Tocá el botón → te abre `losdelsur.vercel.app/api/auth/wa-magic?token=...` → debería redirigirte a `/perfil` logueado.
+4. Si algo falla, mirá los logs en Vercel: Deployments → último deploy → Functions → `/api/whatsapp/webhook`. Los errores de Meta API se loguean ahí.
+
+### Costos
+
+| Concepto | Costo |
+|----|----|
+| Meta Cloud API: respuesta utility en ventana de servicio (user inició) | **$0** |
+| Meta Cloud API: 1000 conversaciones de servicio fuera de ventana | $0 (las primeras 1000/mes son gratis en cualquier caso) |
+| SIM card colombiana | ~$5–10 USD una vez |
+| Plan de datos del SIM | El bot **NO necesita data en el SIM**. Meta Cloud API funciona via internet del server. El SIM solo recibe el SMS de verificación inicial. Podés usar prepago sin recarga después. |
+
+**TL;DR**: ~$10 USD una vez por la SIM, $0/mes en ongoing.
+
+### Cómo coexistir con el bot de la-polla (si reutilizás cuenta Meta Business)
+
+Si usás **el mismo número y misma app** para los dos proyectos, ambos webhooks reciben todos los mensajes (no se puede subscribir un app a un solo proyecto). Los webhooks discriminan por **texto del mensaje**:
+
+- `app/api/whatsapp/webhook/route.ts` (este proyecto) matchea: `/entrar/i` Y `/los del sur/i`.
+- la-polla matchea: `/entrar.*la polla/i` o similar.
+
+Mientras los textos preconfigurados en `wa.me/?text=...` sean distintos, no hay colisión. **Pero usar la misma cuenta significa que un susto en una app afecta a la otra** (rate limits, ban, etc.). **Recomendado: número y app separados** para los-del-sur, aunque la cuenta Meta Business sea la misma.
 
 ---
 
