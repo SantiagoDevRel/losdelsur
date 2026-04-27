@@ -108,28 +108,30 @@ export function LoginView() {
     setSending(true);
     setErr(null);
     const phone = buildPhone();
-    // Server-side: las cookies post-auth se setean via Set-Cookie HttpOnly
-    // (iOS Safari las respeta), evitando los quirks del browser client.
-    try {
-      const res = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, channel: "sms" }),
-      });
-      setSending(false);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setErr(body?.error ?? "No se pudo mandar el código");
-        haptic("error");
-        return;
+    // Send-OTP corre client-side — no necesita cookies (no hay sesión
+    // todavía). El server-side intermediate creaba problemas raros
+    // (ratelimit aggressive, signInWithOtp behavior diferente, etc.).
+    // El fix iOS Safari aplica solo a verifyOtp, donde sí necesitamos
+    // que las cookies se persistan via Set-Cookie HttpOnly.
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+      options: { channel: "sms" },
+    });
+    setSending(false);
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      if (msg.includes("phone signups") || msg.includes("provider")) {
+        setErr("Login por celular no está activado todavía. Probá con email.");
+      } else if (msg.includes("rate") || msg.includes("limit")) {
+        setErr("Muchos intentos. Esperá un minuto.");
+      } else {
+        setErr(error.message || "No se pudo mandar el código");
       }
-      haptic("double");
-      setPhoneStep("otp");
-    } catch (e) {
-      setSending(false);
-      setErr(e instanceof Error ? e.message : "Error de red");
       haptic("error");
+      return;
     }
+    haptic("double");
+    setPhoneStep("otp");
   }
 
   async function verifyOtp(e: React.FormEvent) {
