@@ -67,3 +67,22 @@ export const SESSION_POLICY = {
   // Máximo cambios de device permitidos en la ventana.
   SWITCH_LIMIT_COUNT: 3,
 } as const;
+
+// Cookie name para el device_id persistente. httpOnly + 5 años. Mismo
+// device físico = mismo device_id aunque la sesión Supabase cambie
+// (logout/relogin/clear-cookies-de-supabase pero no las nuestras).
+export const DEVICE_ID_COOKIE = "lds-device-id";
+export const DEVICE_ID_COOKIE_MAX_AGE_S = 60 * 60 * 24 * 365 * 5; // 5 años
+
+// Genera un device_id seguro (UUID v4 via crypto.randomUUID si está
+// disponible, sino fallback hex random). Server-side.
+export function generateDeviceId(): string {
+  // crypto.randomUUID está en Node 19+ y todos los runtimes modernos.
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  // Fallback (no debería pasar en Vercel).
+  return Array.from({ length: 32 }, () =>
+    Math.floor(Math.random() * 16).toString(16),
+  ).join("");
+}
