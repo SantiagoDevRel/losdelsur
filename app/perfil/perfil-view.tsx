@@ -10,7 +10,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { LogIn, LogOut, MapPin, MonitorSmartphone, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LogIn, LogOut, MapPin, MonitorSmartphone, Shield, Users } from "lucide-react";
 import { CacheManager } from "@/components/cache-manager";
 import { CreditsFooter } from "@/components/credits-footer";
 import { InstallCard } from "@/components/install-card";
@@ -191,28 +192,58 @@ function LoggedInHero({
         )}
       </div>
 
-      {/* Sesiones activas + Logout */}
-      <div className="mt-5 flex flex-wrap gap-2">
+      {/* Sesiones activas + Admin (si aplica) + Logout */}
+      <UserActions />
+    </section>
+  );
+}
+
+function UserActions() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me/is-admin")
+      .then((r) => (r.ok ? r.json() : { isAdmin: false }))
+      .then((d) => {
+        if (!cancelled) setIsAdmin(Boolean(d.isAdmin));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="mt-5 flex flex-wrap gap-2">
+      <Link
+        href="/perfil/sesiones"
+        onClick={() => haptic("tap")}
+        className="flex items-center gap-1.5 rounded-lg border-2 border-white/15 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70 hover:border-white/30 hover:text-white"
+      >
+        <MonitorSmartphone size={12} />
+        DISPOSITIVOS
+      </Link>
+      {isAdmin && (
         <Link
-          href="/perfil/sesiones"
+          href="/admin"
+          onClick={() => haptic("tap")}
+          className="flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-verde-neon)] bg-[var(--color-verde-neon)]/10 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--color-verde-neon)]"
+        >
+          <Shield size={12} />
+          ADMIN
+        </Link>
+      )}
+      <form action="/auth/sign-out" method="post">
+        <button
+          type="submit"
           onClick={() => haptic("tap")}
           className="flex items-center gap-1.5 rounded-lg border-2 border-white/15 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70 hover:border-white/30 hover:text-white"
         >
-          <MonitorSmartphone size={12} />
-          DISPOSITIVOS
-        </Link>
-        <form action="/auth/sign-out" method="post">
-          <button
-            type="submit"
-            onClick={() => haptic("tap")}
-            className="flex items-center gap-1.5 rounded-lg border-2 border-white/15 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/70 hover:border-white/30 hover:text-white"
-          >
-            <LogOut size={12} />
-            CERRAR SESIÓN
-          </button>
-        </form>
-      </div>
-    </section>
+          <LogOut size={12} />
+          CERRAR SESIÓN
+        </button>
+      </form>
+    </div>
   );
 }
 
