@@ -161,11 +161,38 @@ export function LoginView() {
 
   // Registra la sesión actual en /api/sessions/register. Si todo OK,
   // redirige a `next`. Si hay conflicto, muestra modal apropiado.
+  //
+  // CRÍTICO: si la request falla por red/timeout/error técnico, NO
+  // bloqueamos al user — la sesión Supabase ya está creada (verifyOtp
+  // ya succeded). El registro en user_sessions es defensivo (limit
+  // anti-sharing); fallarlo silenciosamente es mejor que bloquear un
+  // login legítimo. El heartbeat post-login con grace pre_register
+  // cubre el caso "no me registré pero estoy en /perfil".
+  //
+  // Solo BLOQUEAMOS cuando el server respondió explícitamente con
+  // 409 conflict/cooldown o 429 monthly_limit — esas son decisiones
+  // intencionales del backend.
   async function registerSessionAndRedirect(force = false) {
-    const res = await fetch(
-      `/api/sessions/register${force ? "?force=true" : ""}`,
-      { method: "POST" },
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    let res: Response | null = null;
+    try {
+      res = await fetch(
+        `/api/sessions/register${force ? "?force=true" : ""}`,
+        { method: "POST", signal: controller.signal, credentials: "include" },
+      );
+    } catch (e) {
+      // Network error / timeout / Safari quirks — redirect anyway.
+      // La sesión Supabase está bien; el session-limit lo retomamos
+      // en el siguiente registro automático o vía heartbeat.
+      console.warn("[login] /api/sessions/register failed, redirecting anyway:", e);
+      window.location.href = nextParam;
+      return;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
     if (res.ok) {
       window.location.href = nextParam;
       return;
@@ -174,6 +201,14 @@ export function LoginView() {
       setErr("No se pudo verificar la sesión. Probá de nuevo.");
       return;
     }
+    // Cualquier 5xx u otro código no-conflicto → redirect igual (no
+    // bloqueamos por bug de servidor).
+    if (res.status >= 500) {
+      console.warn("[login] /api/sessions/register 5xx, redirecting anyway:", res.status);
+      window.location.href = nextParam;
+      return;
+    }
+
     const body = (await res.json().catch(() => null)) as
       | {
           error?: string;
@@ -186,7 +221,9 @@ export function LoginView() {
         }
       | null;
     if (!body) {
-      setErr("Error registrando la sesión. Probá más tarde.");
+      // No body parseable — redirect igual.
+      console.warn("[login] /api/sessions/register no body, redirecting anyway");
+      window.location.href = nextParam;
       return;
     }
 
@@ -211,7 +248,9 @@ export function LoginView() {
         currentSince: body.currentSince ?? new Date().toISOString(),
       });
     } else {
-      setErr(body.error ?? "Error registrando la sesión.");
+      // Error desconocido — redirect igual, no es un conflicto real.
+      console.warn("[login] /api/sessions/register unknown error, redirecting anyway:", body);
+      window.location.href = nextParam;
     }
   }
 
