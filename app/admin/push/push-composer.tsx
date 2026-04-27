@@ -7,11 +7,26 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bell, Loader2, Send } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Send } from "lucide-react";
 
 interface Props {
   availableCiudades: string[];
+}
+
+interface HistoryRow {
+  id: string;
+  title: string;
+  body: string;
+  url: string | null;
+  target_type: "all" | "ciudades" | "user";
+  target_value: unknown;
+  total_targeted: number;
+  sent_count: number;
+  failed_count: number;
+  cleaned_count: number;
+  duration_ms: number | null;
+  sent_at: string;
 }
 
 type TargetMode = "all" | "ciudades" | "user";
@@ -36,6 +51,23 @@ export function PushComposer({ availableCiudades }: Props) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/push-history?limit=20");
+      if (!res.ok) return;
+      const data = (await res.json()) as { history: HistoryRow[] };
+      setHistory(data.history);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial async
+    void loadHistory();
+  }, [loadHistory]);
 
   // Recalcular estimate cuando cambia el target.
   useEffect(() => {
@@ -118,6 +150,8 @@ export function PushComposer({ availableCiudades }: Props) {
         throw new Error(data.error ?? `error ${res.status}`);
       }
       setResult(data);
+      // Refrescar historial post-envío.
+      void loadHistory();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Error enviando");
     } finally {
@@ -324,8 +358,87 @@ export function PushComposer({ availableCiudades }: Props) {
           )}
         </button>
       </form>
+
+      {/* Histórico de envíos */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-[11px] font-extrabold uppercase tracking-[0.15em] text-[var(--color-verde-neon)]">
+          HISTORIAL DE ENVÍOS
+        </h2>
+        {history.length === 0 ? (
+          <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-white/40">
+            Todavía no enviaste ningún push.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {history.map((h) => (
+              <li
+                key={h.id}
+                className="rounded-2xl border-2 border-white/10 bg-white/5 p-4"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3
+                    className="truncate text-[13px] font-extrabold uppercase text-white"
+                    style={{ fontFamily: "var(--font-body)" }}
+                  >
+                    {h.title}
+                  </h3>
+                  <time className="shrink-0 text-[10px] font-medium uppercase tracking-[0.05em] text-white/40">
+                    {formatHistoryDate(h.sent_at)}
+                  </time>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[11px] font-medium uppercase leading-snug tracking-[0.03em] text-white/60">
+                  {h.body}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-medium uppercase tracking-[0.04em]">
+                  <span className="text-white/40">
+                    Target:{" "}
+                    <span className="font-extrabold text-white/70">
+                      {targetSummary(h)}
+                    </span>
+                  </span>
+                  <span className="text-[var(--color-verde-neon)]">
+                    ✓ {h.sent_count}
+                  </span>
+                  {h.failed_count > 0 && (
+                    <span className="text-red-400">✗ {h.failed_count}</span>
+                  )}
+                  {h.cleaned_count > 0 && (
+                    <span className="text-yellow-400">
+                      🧹 {h.cleaned_count}
+                    </span>
+                  )}
+                  {h.duration_ms != null && (
+                    <span className="text-white/30">
+                      {(h.duration_ms / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   );
+}
+
+function formatHistoryDate(iso: string): string {
+  return new Date(iso).toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function targetSummary(h: HistoryRow): string {
+  if (h.target_type === "all") return "TODOS";
+  if (h.target_type === "user") return "1 USER";
+  if (h.target_type === "ciudades") {
+    const cs = (h.target_value as string[] | null) ?? [];
+    return cs.length === 1 ? cs[0]! : `${cs.length} CIUDADES`;
+  }
+  return "—";
 }
 
 function Field({

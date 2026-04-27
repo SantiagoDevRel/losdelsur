@@ -52,6 +52,7 @@ export function UsersView() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial
     void load("");
   }, [load]);
 

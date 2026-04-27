@@ -1,16 +1,28 @@
-// app/admin/page.tsx
-// Dashboard home — server component que pasa la primera snapshot al
-// client component que después hace polling cada 10s para refresco
-// "real-time".
+// app/api/admin/stats/route.ts
+// Snapshot de stats del dashboard. Polled cada 10s desde la home para
+// refresco "real-time" sin requerir Supabase Realtime subscription
+// (que también podríamos hacer en el futuro).
 
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DashboardView, type Stats } from "./dashboard-view";
+import { isAdmin } from "@/lib/auth/admin";
 
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-async function loadInitialStats(): Promise<Stats> {
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await isAdmin(user.id)))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
   const admin = createAdminClient();
-  const [users, subs, sessions, signups7d, signups24h, profiles, recent] =
+
+  // Conteos paralelos.
+  const [users, subs, sessions, signups7d, signups24h, profiles, recentLogins] =
     await Promise.all([
       admin.from("profiles").select("id", { count: "exact", head: true }),
       admin
@@ -32,6 +44,7 @@ async function loadInitialStats(): Promise<Stats> {
           new Date(Date.now() - 86_400_000).toISOString(),
         ),
       admin.from("profiles").select("ciudad, combo"),
+      // Sesiones tocadas (last_seen_at) en últimos 5 min = "users online"
       admin
         .from("user_sessions")
         .select("user_id", { count: "exact", head: true })
@@ -53,20 +66,15 @@ async function loadInitialStats(): Promise<Stats> {
       .slice(0, n)
       .map(([label, value]) => ({ label, value }));
 
-  return {
+  return NextResponse.json({
     totalUsers: users.count ?? 0,
     activeSubs: subs.count ?? 0,
     activeSessions: sessions.count ?? 0,
     signupsLast7d: signups7d.count ?? 0,
     signupsLast24h: signups24h.count ?? 0,
-    onlineNow: recent.count ?? 0,
+    onlineNow: recentLogins.count ?? 0,
     topCities: sortMap(cityCounts),
     topCombos: sortMap(comboCounts),
     timestamp: new Date().toISOString(),
-  };
-}
-
-export default async function AdminHomePage() {
-  const initial = await loadInitialStats();
-  return <DashboardView initial={initial} />;
+  });
 }

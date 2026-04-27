@@ -5,7 +5,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllCanciones } from "@/lib/content";
-import { BarList } from "../page";
+import { BarList } from "@/components/admin/bar-list";
 
 export const dynamic = "force-dynamic";
 

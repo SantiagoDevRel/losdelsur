@@ -131,6 +131,34 @@ export async function POST(request: Request) {
     }
   }
 
+  // Audit log — record this send for /admin/push history.
+  // Determine target_type/value from body for the record.
+  const targetType: "all" | "ciudades" | "user" =
+    body.user_ids && body.user_ids.length > 0
+      ? "user"
+      : body.ciudades && body.ciudades.length > 0
+        ? "ciudades"
+        : "all";
+  const targetValue =
+    targetType === "user"
+      ? body.user_ids
+      : targetType === "ciudades"
+        ? body.ciudades
+        : null;
+  await admin.from("push_history").insert({
+    sent_by: user.id,
+    title: body.title,
+    body: body.body,
+    url: body.url ?? null,
+    target_type: targetType,
+    target_value: targetValue,
+    total_targeted: subs.length,
+    sent_count: sent,
+    failed_count: failed,
+    cleaned_count: expired.length,
+    duration_ms: Date.now() - startMs,
+  });
+
   return NextResponse.json({
     sent,
     failed,
