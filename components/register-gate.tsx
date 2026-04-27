@@ -19,9 +19,10 @@ import { Loader2, MapPin, User as UserIcon, Users } from "lucide-react";
 import { searchCiudades } from "@/lib/ciudades";
 import { useUser } from "./user-provider";
 import { haptic } from "@/lib/haptic";
+import type { Profile } from "@/lib/supabase/types";
 
 export function RegisterGate() {
-  const { user, profile, loading, refreshProfile } = useUser();
+  const { user, profile, loading, setProfileLocal } = useUser();
   const [nombre, setNombre] = useState("");
   const [ciudad, setCiudad] = useState("");
   const [ciudadFocused, setCiudadFocused] = useState(false);
@@ -66,14 +67,12 @@ export function RegisterGate() {
     setSaving(true);
     setErr(null);
 
-    // Llamamos al server route en vez de supabase-js directo. Esto evita
-    // el bug donde la request browser → supabase.co se queda colgada
-    // ("GUARDANDO..." infinito) en algunas redes/devices.
-    //
-    // Timeout defensivo: si la request tarda > 12s, abortamos y como
-    // fallback hacemos refreshProfile — si el upsert llegó al server
-    // pero la response se perdió, el profile ya estará guardado y el
-    // gate se cerrará automáticamente.
+    // Server route en vez de supabase-js directo (cross-origin se cuelga
+    // en algunas redes). Usamos el profile devuelto por /api/profile
+    // directamente con setProfileLocal — NO refreshProfile, que era
+    // donde se nos colgaba el flow ("GUARDANDO..." infinito porque el
+    // refresh terminaba haciendo otra request a supabase.co que también
+    // colgaba). Timeout 12s + fallback.
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12_000);
 
@@ -88,27 +87,33 @@ export function RegisterGate() {
         }),
         signal: controller.signal,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: boolean; profile?: Profile; error?: string }
+        | null;
+      if (!res.ok || !body || !body.profile) {
         throw new Error(body?.error ?? `error ${res.status}`);
       }
       haptic("double");
-      await refreshProfile();
+      // Cierre instantáneo del gate — usamos la data devuelta por el
+      // server. Cero round-trips extra. Cero supabase.co browser-side.
+      setProfileLocal(body.profile);
     } catch (e) {
       const isAbort = e instanceof Error && e.name === "AbortError";
-      // Fallback: aunque la response se haya perdido, intentamos
-      // refrescar el profile desde el server. Si el upsert llegó OK
-      // pero la respuesta no volvió, ahora vemos los datos guardados
-      // y el gate se cierra solo.
+      // Fallback: chequear via /api/me/profile (server-side) si el upsert
+      // llegó pero la respuesta se perdió. Si está guardado, cerramos el
+      // gate igual.
       try {
-        await refreshProfile();
+        const meRes = await fetch("/api/me/profile", { cache: "no-store" });
+        if (meRes.ok) {
+          const me = (await meRes.json()) as { profile: Profile | null };
+          if (me.profile && me.profile.ciudad) {
+            setProfileLocal(me.profile);
+            return;
+          }
+        }
       } catch {
         /* ignore */
       }
-      // Si después del refresh ya tenemos ciudad, NO mostramos error
-      // (todo OK al final). El effect de UserProvider hará re-render
-      // y el gate se desmonta.
-      // Si seguimos sin ciudad, mostramos un error claro.
       setErr(
         isAbort
           ? "La conexión es muy lenta. Probá de nuevo."
