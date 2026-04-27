@@ -108,28 +108,28 @@ export function LoginView() {
     setSending(true);
     setErr(null);
     const phone = buildPhone();
-    const { error } = await supabase.auth.signInWithOtp({
-      phone,
-      options: { channel: "sms" }, // si activás WhatsApp, cambiá a "whatsapp"
-    });
-    setSending(false);
-    if (error) {
-      // Errores típicos:
-      //  - "Phone signups are disabled" → activar Phone provider en Supabase
-      //  - "SMS sending failed" → credenciales Twilio mal seteadas
-      const msg = (error.message || "").toLowerCase();
-      if (msg.includes("phone signups") || msg.includes("provider")) {
-        setErr("Login por celular no está activado todavía. Probá con email.");
-      } else if (msg.includes("rate") || msg.includes("limit")) {
-        setErr("Muchos intentos. Esperá un minuto.");
-      } else {
-        setErr(error.message || "No se pudo mandar el código");
+    // Server-side: las cookies post-auth se setean via Set-Cookie HttpOnly
+    // (iOS Safari las respeta), evitando los quirks del browser client.
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, channel: "sms" }),
+      });
+      setSending(false);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErr(body?.error ?? "No se pudo mandar el código");
+        haptic("error");
+        return;
       }
+      haptic("double");
+      setPhoneStep("otp");
+    } catch (e) {
+      setSending(false);
+      setErr(e instanceof Error ? e.message : "Error de red");
       haptic("error");
-      return;
     }
-    haptic("double");
-    setPhoneStep("otp");
   }
 
   async function verifyOtp(e: React.FormEvent) {
@@ -142,21 +142,29 @@ export function LoginView() {
     setSending(true);
     setErr(null);
     const phone = buildPhone();
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: "sms",
-    });
-    setSending(false);
-    if (error) {
-      setErr(error.message || "Código inválido o vencido");
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, token: otp }),
+        credentials: "include",
+      });
+      setSending(false);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErr(body?.error ?? "Código inválido o vencido");
+        haptic("error");
+        return;
+      }
+      haptic("double");
+      // Cookies ya quedaron persistidas server-side. Registramos sesión
+      // (no bloqueante: si falla, redirect igual al perfil).
+      await registerSessionAndRedirect();
+    } catch (e) {
+      setSending(false);
+      setErr(e instanceof Error ? e.message : "Error de red");
       haptic("error");
-      return;
     }
-    haptic("double");
-    // Antes de redirigir, registramos esta sesión en user_sessions para
-    // hacer cumplir la regla "1 mobile + 1 desktop" + cooldown + cap.
-    await registerSessionAndRedirect();
   }
 
   // Registra la sesión actual en /api/sessions/register. Si todo OK,
