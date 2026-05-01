@@ -21,12 +21,22 @@ export async function isAudioCached(url: string): Promise<boolean> {
   }
 }
 
-// Descarga un archivo de audio reportando progreso por callback.
-// Guarda la Response resultante en el cache offline.
+// Descarga un archivo de audio y lo guarda en el cache offline.
 //
-// `onProgress` recibe un número entre 0 y 1 (o null si el servidor no
-// envía Content-Length). En iOS Safari a veces Content-Length no llega,
-// por eso manejamos ese caso en vez de asumir.
+// El bucket R2 público no devuelve headers CORS, así que un `fetch()` en
+// modo "cors" (default) no puede leer el body desde JS — la promise
+// resuelve OK pero el browser bloquea acceso al stream. Por eso usamos
+// `mode: "no-cors"` que retorna una "opaque response": el JS no la puede
+// leer, PERO se puede guardar tal cual en Cache API y el SW después la
+// sirve al `<audio>` cuando el user toca play offline.
+//
+// Trade-off: perdemos progress reporting preciso (no podemos leer
+// Content-Length ni hacer stream del body). Si en el futuro se setea
+// CORS en el bucket R2 (Cloudflare dashboard → R2 → settings → CORS),
+// podemos volver a la versión streaming con progress real.
+//
+// `onProgress` se llama con null mientras descarga (UI muestra spinner
+// indeterminado) y con 1 al terminar.
 export async function downloadAudio(
   url: string,
   onProgress?: (fraction: number | null) => void,
@@ -35,41 +45,26 @@ export async function downloadAudio(
     throw new Error("Cache API no disponible en este navegador");
   }
 
-  const response = await fetch(url);
-  if (!response.ok || !response.body) {
-    throw new Error(`Fallo la descarga: HTTP ${response.status}`);
-  }
+  if (onProgress) onProgress(null);
 
-  const totalHeader = response.headers.get("Content-Length");
-  const total = totalHeader ? parseInt(totalHeader, 10) : null;
-
-  // Streameamos la respuesta para poder reportar progreso mientras
-  // acumulamos los chunks en memoria. Al terminar reconstruimos una
-  // Response nueva con los bytes totales para guardarla en el cache.
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      received += value.length;
-      if (onProgress) onProgress(total ? received / total : null);
-    }
-  }
-
-  // Juntamos los chunks en un único Blob para construir la Response.
-  const blob = new Blob(chunks as BlobPart[], {
-    type: response.headers.get("Content-Type") ?? "audio/mpeg",
-  });
-  const cachedResponse = new Response(blob, {
-    headers: response.headers,
+  // Modo no-cors: opaque response, no podemos leer status ni body, pero
+  // sí cachearla. Si la URL es 404 el browser igual devuelve una opaque
+  // response "exitosa" — la verificación real de existencia ya pasó al
+  // generar el audio_url en lib/content.ts.
+  const response = await fetch(url, {
+    mode: "no-cors",
+    credentials: "omit",
+    cache: "no-store",
   });
 
+  // En no-cors, response.type === "opaque" y response.ok es false (sí,
+  // raro). No podemos diferenciar 200 de 404. Igual la cacheamos: si
+  // fuera 404 el SW devolvería el error al cliente cuando intente
+  // reproducir, y el user verá que la canción no carga. Es el mejor
+  // esfuerzo posible sin CORS.
   const cache = await caches.open(AUDIO_CACHE_NAME);
-  await cache.put(url, cachedResponse);
+  await cache.put(url, response);
+
   if (onProgress) onProgress(1);
 }
 
@@ -86,10 +81,17 @@ export interface CacheStats {
   bytes: number;
 }
 
-// Cuenta canciones cacheadas + bytes totales. Usa Content-Length del
-// header cuando está disponible (instantáneo); si no, lee el blob
-// (más lento pero preciso). Los audios los servimos con Content-Length
-// seteado desde Vercel, así que en producción es instantáneo.
+// Cuenta canciones cacheadas + bytes totales.
+//
+// Como descargamos con `mode: "no-cors"` (R2 sin CORS), las responses
+// guardadas son opaque: NO exponen Content-Length ni permiten leer el
+// blob. Para esos casos usamos un promedio estimado por canción (4 MB
+// con el actual encoding 192k AAC stereo).
+//
+// Si en el futuro se setea CORS en R2 y volvemos a streaming reads,
+// los bytes serán exactos automáticamente.
+const ESTIMATED_BYTES_PER_SONG = 4 * 1024 * 1024;
+
 export async function getAudioCacheStats(): Promise<CacheStats> {
   if (typeof caches === "undefined") return { count: 0, bytes: 0 };
   try {
@@ -99,14 +101,18 @@ export async function getAudioCacheStats(): Promise<CacheStats> {
     for (const req of keys) {
       const res = await cache.match(req);
       if (!res) continue;
+      // Opaque responses: type === "opaque", headers vacíos, body
+      // ilegible. Caemos al estimado.
+      if (res.type === "opaque") {
+        bytes += ESTIMATED_BYTES_PER_SONG;
+        continue;
+      }
       const cl = res.headers.get("Content-Length");
       if (cl) {
         bytes += parseInt(cl, 10) || 0;
       } else {
-        // Fallback: leer el blob. Es más lento pero solo pasa si el
-        // server no mandó Content-Length (raro en producción).
         const blob = await res.clone().blob();
-        bytes += blob.size;
+        bytes += blob.size || ESTIMATED_BYTES_PER_SONG;
       }
     }
     return { count: keys.length, bytes };

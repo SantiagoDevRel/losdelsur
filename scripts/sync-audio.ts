@@ -1,18 +1,43 @@
 // scripts/sync-audio.ts
 // Copia de `content/` a `public/`:
 //   - imagen de cover: content/cdN/<cover>.jpg → public/covers/cdN.<ext>
-//   - audio.m4a → public/audio/cdN/<NN-slug>.vN.m4a  (SOLO local, no
-//     se sirve desde Vercel; los audios de prod viven en R2)
+//   - audio.m4a → public/audio/cdN/<NN-slug>.vN.m4a  (SOLO si no hay
+//     R2 configurado — ver más abajo)
 //
 // Audio en producción vive en Cloudflare R2 (subido con upload-to-r2.py).
-// Esta sync mantiene la copia local por si Santiago corre `next dev`
-// sin internet o quiere preview offline. Los audios LOCALES NO van al
-// build de Vercel — están en .gitignore y outputFileTracingExcludes.
+// Cuando NEXT_PUBLIC_R2_PUBLIC_URL está seteado (deploy normal), NO
+// copiamos los .m4a a public/audio/ — sería redundante (la app los
+// pide a R2) y además **infla el precache del Service Worker con
+// 470 MB de audios**, rompiendo la instalación de la PWA.
+//
+// Si querés FORZAR la copia local (testing offline sin internet), pasá
+// `LDS_COPY_LOCAL_AUDIO=1` al ejecutar el script:
+//   LDS_COPY_LOCAL_AUDIO=1 npm run sync-audio
 //
 // Se corre automático en `prebuild` y a mano con `npm run sync-audio`.
 
 import { mkdirSync, readdirSync, readFileSync, copyFileSync, statSync, existsSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
+
+// Cargar .env.local manualmente — `tsx` no lo hace automático cuando
+// se invoca desde un npm script (a diferencia de `next dev/build`).
+// Necesitamos NEXT_PUBLIC_R2_PUBLIC_URL para decidir si copiar audios
+// a public/ o no (ver shouldSyncAudio más abajo).
+function loadDotEnvLocal() {
+  const envPath = resolve(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) return;
+  const content = readFileSync(envPath, "utf-8");
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 0) continue;
+    const key = line.slice(0, eq).trim();
+    const val = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
+loadDotEnvLocal();
 
 const CONTENT_ROOT = resolve(process.cwd(), "content");
 const PUBLIC_AUDIO = resolve(process.cwd(), "public", "audio");
@@ -41,7 +66,25 @@ function readAudioVersion(cdDir: string): number {
   }
 }
 
+// Skip cuando R2 está configurado (prod normal). Solo copiar si
+// explícitamente lo piden o si no hay R2 (fallback emergency).
+function shouldSyncAudio(): boolean {
+  if (process.env.LDS_COPY_LOCAL_AUDIO === "1") return true;
+  return !process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
+}
+
+import { rmSync } from "node:fs";
+
 function syncAudio(): number {
+  // Si tenemos R2 y no se forzó local, limpiar public/audio/ y salir.
+  // Esto previene que .m4a viejos contaminen el precache del SW.
+  if (!shouldSyncAudio()) {
+    if (existsSync(PUBLIC_AUDIO)) {
+      rmSync(PUBLIC_AUDIO, { recursive: true, force: true });
+    }
+    return 0;
+  }
+
   let copied = 0;
   for (const cdName of listCDDirs()) {
     const cdDir = join(CONTENT_ROOT, cdName);
@@ -49,6 +92,18 @@ function syncAudio(): number {
     const versionSuffix = audioVersion >= 2 ? `.v${audioVersion}` : "";
     const dest = join(PUBLIC_AUDIO, cdName);
     mkdirSync(dest, { recursive: true });
+    // Limpiar versiones viejas en este folder antes de copiar la actual,
+    // así public/audio/cdN/ solo tiene la `.vN` actual y no acumula
+    // .v3, .v4, .v5... cada vez que se bumpea audio_version localmente.
+    for (const f of readdirSync(dest)) {
+      if (/\.v\d+\.(m4a|mp3)$/.test(f)) {
+        const expected = f.endsWith(`${versionSuffix}.m4a`) || f.endsWith(`${versionSuffix}.mp3`);
+        if (!expected) {
+          const { unlinkSync } = require("node:fs") as typeof import("node:fs");
+          unlinkSync(join(dest, f));
+        }
+      }
+    }
     for (const entry of readdirSync(cdDir)) {
       const songDir = join(cdDir, entry);
       if (!statSync(songDir).isDirectory()) continue;

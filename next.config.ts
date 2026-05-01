@@ -14,6 +14,12 @@ const withSerwist = withSerwistInit({
   // con NetworkFirst en sw.ts (matcher request.mode === "navigate").
   // Tener ambos genera matchers ambiguos.
   cacheOnNavigation: false,
+  // EXCLUIR audios y mp3 del precache. sync-audio.ts copia los .m4a
+  // a public/audio/ para preview local, pero NO queremos que el SW
+  // precachee 470 MB de audios al instalar — el user los descarga
+  // selectivamente con el botón "Descargar". El runtime CacheFirst
+  // (ver app/sw.ts) los maneja on-demand.
+  globPublicPatterns: ["**/*", "!**/*.m4a", "!**/*.mp3", "!audio/**"],
 });
 
 // Cache del audio: el cache-buster vive en el PATH del archivo (sufijo
