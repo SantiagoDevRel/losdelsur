@@ -7,11 +7,12 @@
 //   - <ServiceWorkerRegister/> (registro del SW compilado por Serwist)
 
 import type { Metadata, Viewport } from "next";
-import { Anton, Barlow_Condensed, Bebas_Neue, Permanent_Marker } from "next/font/google";
+import { Anton, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import NextTopLoader from "nextjs-toploader";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ServiceWorkerRegister } from "@/components/sw-register";
+import { UpdateToast } from "@/components/update-toast";
 import { TabBar } from "@/components/tab-bar";
 import { AmbientVideo } from "@/components/ambient-video";
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
@@ -24,6 +25,11 @@ import { getAllCDs } from "@/lib/content";
 // Fuentes auto-hosteadas: Next las descarga en build y las sirve
 // desde nuestro propio dominio con preload automático.
 // Resultado: zero FOUT, una sola request, cacheadas agresivamente.
+//
+// Anteriormente había también Bebas_Neue (--font-bebas) y
+// Permanent_Marker (--font-marker), pero un grep mostró 0 usos en
+// componentes. Eliminados para reducir el precache del SW (~10 woff2
+// menos) y el bundle de fonts.
 const anton = Anton({
   weight: "400",
   subsets: ["latin"],
@@ -34,18 +40,6 @@ const barlow = Barlow_Condensed({
   weight: ["400", "500", "600", "700", "800", "900"],
   subsets: ["latin"],
   variable: "--font-body",
-  display: "swap",
-});
-const bebas = Bebas_Neue({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-bebas",
-  display: "swap",
-});
-const marker = Permanent_Marker({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-marker",
   display: "swap",
 });
 
@@ -91,7 +85,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`h-full antialiased ${anton.variable} ${barlow.variable} ${bebas.variable} ${marker.variable}`}
+      className={`h-full antialiased ${anton.variable} ${barlow.variable}`}
     >
       {/* NO ponemos bg-black aquí: taparía el video ambient. El negro
           viene del <html> vía globals.css, que actúa como fallback
@@ -128,6 +122,7 @@ export default function RootLayout({
           </AudioPlayerProvider>
         </UserProvider>
         <ServiceWorkerRegister />
+        <UpdateToast />
       </body>
     </html>
   );

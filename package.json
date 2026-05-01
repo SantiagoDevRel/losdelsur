@@ -8,7 +8,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "sync-audio": "tsx scripts/sync-audio.ts"
+    "sync-audio": "tsx scripts/sync-audio.ts",
+    "test:offline": "playwright test tests/offline.spec.ts",
+    "test:offline:local": "cross-env PW_BASE_URL=http://localhost:3000 playwright test tests/offline.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -34,6 +36,7 @@
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.3.1",
+    "@playwright/test": "^1.59.1",
     "@serwist/next": "^9.5.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

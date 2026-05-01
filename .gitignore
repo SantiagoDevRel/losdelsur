@@ -85,3 +85,4 @@ content/cd*/*/audio.legacy.m4a
 *.aab
 *.keystore
 !debug.keystore
+tests-results/

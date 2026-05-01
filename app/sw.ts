@@ -76,7 +76,13 @@ self.addEventListener("install", (event: ExtendableEvent) => {
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true,
+  // skipWaiting: false → cuando se deploya un SW nuevo, queda en
+  // estado "waiting" hasta que el cliente le manda postMessage
+  // {type: "SKIP_WAITING"}. Sin esto, el browser actualiza el SW en
+  // background sin avisar al user; con esto, el componente
+  // UpdateToast detecta el waiting, muestra "Nueva versión" y al
+  // hacer click activa + recarga.
+  skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
   // Fallback offline a /offline (estático, sin sesión) cuando la

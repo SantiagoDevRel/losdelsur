@@ -156,9 +156,6 @@ a[href]:active,
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.marker {
-  font-family: var(--font-marker);
-}
 .eyebrow {
   font-family: var(--font-body);
   font-weight: 700;
