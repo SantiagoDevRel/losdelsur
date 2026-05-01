@@ -4,7 +4,7 @@ PWA de cánticos de la barra Los Del Sur (Atlético Nacional, Medellín).
 Letras + audio offline + cuentas sincronizadas + notificaciones push.
 
 **Producción:** https://losdelsur.vercel.app
-**Versión:** 0.3 (audio HQ + R2 + auth)
+**Versión:** 0.4 (audio v4 a 192 kbps + cd4 re-mapeado)
 **Roadmap:** ver [`docs/ROADMAP.md`](docs/ROADMAP.md)
 
 ---
@@ -41,12 +41,14 @@ R2 bucket "losdelsur-audio"     ← producción (egress gratis)
 https://pub-xxx.r2.dev/cdN/SLUG.vN.m4a   ← URL en la app
 ```
 
-- **Calidad:** AAC 128 kbps stereo (ya NO los 64k mono iniciales —
-  se notaba mal en parlantes grandes / carros).
+- **Calidad:** AAC 192 kbps stereo (subido desde 128k en v0.4 — algunos
+  cánticos sonaban duros en parlantes de carro; 192k cubre mejor el
+  rango medio-alto sin inflar mucho el tamaño).
 - **Cache busting:** `audio_version` en `cd.json` se traduce a sufijo
   `.vN.m4a` en el path. Bumpear → URL nueva → CDN obligado a re-fetch.
   No usamos `?v=N` query — Vercel CDN lo ignora para asset cache.
-- **Tamaños:** ~3 MB promedio por cántico, ~400 MB total los 6 CDs.
+  Versión actual: **v4**.
+- **Tamaños:** ~4 MB promedio por cántico, ~470 MB total los 6 CDs.
 
 ### Auth + perfil
 
