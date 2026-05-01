@@ -101,15 +101,19 @@ function loadCD(dirName: string): CD {
       const raw = readJson<RawSong>(join(full, "song.json"));
       const letraPath = join(full, raw.letra_file ?? "letra.md");
       const letra = readLetra(letraPath) || "Letra pendiente de transcripción";
-      // Letra sincronizada: si existe letra.lrc en el folder, la parseamos.
-      const lrcPath = join(full, "letra.lrc");
-      const letra_timed = existsSync(lrcPath)
-        ? parseLRC(readFileSync(lrcPath, "utf-8"))
-        : undefined;
       // Canción "lista": tiene letra real (no placeholder) y .lrc
       // sincronizada — marca visual en la lista.
       const hasRealLetra =
         letra.length >= 50 && !/pendiente de transcripci/i.test(letra);
+      // Letra sincronizada: si existe letra.lrc en el folder, la parseamos.
+      // PERO solo si la letra.md es real — cuando es placeholder, el .lrc
+      // que existe es la transcripción RAW de Whisper (alucinaciones tipo
+      // "Gracias por ver el video"). Mostrarla como letras oficiales sería
+      // engañoso, mejor que la canción muestre "Letra pendiente" textual.
+      const lrcPath = join(full, "letra.lrc");
+      const letra_timed = hasRealLetra && existsSync(lrcPath)
+        ? parseLRC(readFileSync(lrcPath, "utf-8"))
+        : undefined;
       const ready = Boolean(hasRealLetra && letra_timed && letra_timed.length > 0);
       // URL pública del audio: servimos desde Cloudflare R2 (egress free,
       // global edge). Path tiene el sufijo .vN que actúa como cache
