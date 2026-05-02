@@ -1,5 +1,6 @@
 // app/tribuna/[id]/tribuna-partido.tsx
-// Tabs por sección + grid masonry + lightbox.
+// Mapa visual de la tribuna sur (clickeable por sección) + grid de
+// thumbs + lightbox full-screen.
 
 "use client";
 
@@ -13,6 +14,7 @@ import {
   MapPin,
   X,
 } from "lucide-react";
+import { TribunaMapa } from "@/components/tribuna/tribuna-mapa";
 import { haptic } from "@/lib/haptic";
 
 interface Partido {
@@ -34,12 +36,9 @@ interface Foto {
   full_url: string;
 }
 
-const SECCIONES: { value: Foto["seccion"]; label: string }[] = [
-  { value: "SUR_A1", label: "A1" },
-  { value: "SUR_A2", label: "A2" },
-  { value: "SUR_B1", label: "B1" },
-  { value: "SUR_B2", label: "B2" },
-];
+// Orden de fallback cuando la sección por defecto está vacía — saltamos
+// a la primera con fotos.
+const SECCIONES_ORDER: Foto["seccion"][] = ["SUR_A1", "SUR_A2", "SUR_B1", "SUR_B2"];
 
 export function TribunaPartido({ partidoId }: { partidoId: string }) {
   const [partido, setPartido] = useState<Partido | null>(null);
@@ -63,8 +62,8 @@ export function TribunaPartido({ partidoId }: { partidoId: string }) {
         // Si la sección por default está vacía, saltamos a la primera con fotos.
         const counts: Record<string, number> = {};
         for (const f of d.fotos) counts[f.seccion] = (counts[f.seccion] ?? 0) + 1;
-        const firstWith = SECCIONES.find((s) => counts[s.value] > 0);
-        if (firstWith) setActiveSeccion(firstWith.value);
+        const firstWith = SECCIONES_ORDER.find((s) => (counts[s] ?? 0) > 0);
+        if (firstWith) setActiveSeccion(firstWith);
         setLoading(false);
       })
       .catch((e) => {
@@ -184,37 +183,19 @@ export function TribunaPartido({ partidoId }: { partidoId: string }) {
         </div>
       </header>
 
-      {/* Tabs por sección */}
-      <nav
-        aria-label="Secciones de la tribuna sur"
-        className="sticky top-12 z-20 border-b border-white/10 bg-black/85 px-5 py-3 backdrop-blur sm:top-16"
-      >
-        <div className="flex gap-2">
-          {SECCIONES.map((s) => {
-            const n = fotosBySeccion[s.value].length;
-            const active = activeSeccion === s.value;
-            return (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => {
-                  haptic("tap");
-                  setActiveSeccion(s.value);
-                }}
-                className={`flex-1 rounded-lg border-2 px-2 py-2 text-[11px] font-extrabold uppercase tracking-[0.08em] transition-colors ${
-                  active
-                    ? "border-[var(--color-verde-neon)] bg-[var(--color-verde-neon)] text-black"
-                    : "border-white/15 text-white/60"
-                } ${n === 0 ? "opacity-40" : ""}`}
-                aria-current={active ? "page" : undefined}
-              >
-                <div>{s.label}</div>
-                <div className="text-[9px] tabular-nums">{n}</div>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Mapa visual de la tribuna sur — clickeable por sección */}
+      <section className="px-5 pb-2 pt-3">
+        <TribunaMapa
+          active={activeSeccion}
+          countsBySeccion={{
+            SUR_A1: fotosBySeccion.SUR_A1.length,
+            SUR_A2: fotosBySeccion.SUR_A2.length,
+            SUR_B1: fotosBySeccion.SUR_B1.length,
+            SUR_B2: fotosBySeccion.SUR_B2.length,
+          }}
+          onChange={(s) => setActiveSeccion(s)}
+        />
+      </section>
 
       {/* Grid */}
       <section className="px-5 pt-4">

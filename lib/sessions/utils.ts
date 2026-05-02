@@ -68,6 +68,24 @@ export const SESSION_POLICY = {
   SWITCH_LIMIT_COUNT: 3,
 } as const;
 
+// Phones que están exentos del session-limit ("1 mobile + 1 desktop"
+// + cooldown 24h + cap mensual). Para que el founder pueda demostrar
+// la app desde múltiples celus/laptops sin lockout. Hardcoded a
+// propósito — no es una feature, es una excepción operacional.
+//
+// Comparamos contra el phone normalizado de auth.users (sin "+").
+const SESSION_BYPASS_PHONES = new Set<string>([
+  "573117312391",
+]);
+
+export function isSessionLimitBypass(phoneE164OrNull: string | null | undefined): boolean {
+  if (!phoneE164OrNull) return false;
+  const normalized = phoneE164OrNull.startsWith("+")
+    ? phoneE164OrNull.slice(1)
+    : phoneE164OrNull;
+  return SESSION_BYPASS_PHONES.has(normalized);
+}
+
 // Cookie name para el device_id persistente. httpOnly + 5 años. Mismo
 // device físico = mismo device_id aunque la sesión Supabase cambie
 // (logout/relogin/clear-cookies-de-supabase pero no las nuestras).

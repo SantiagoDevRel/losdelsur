@@ -28,6 +28,7 @@ import {
   buildDeviceLabel,
   decodeJWTSessionId,
   generateDeviceId,
+  isSessionLimitBypass,
   DEVICE_ID_COOKIE,
   DEVICE_ID_COOKIE_MAX_AGE_S,
   SESSION_POLICY,
@@ -68,6 +69,43 @@ export async function POST(request: Request) {
   const ua = request.headers.get("user-agent") ?? "";
   const deviceType = detectDeviceType(ua);
   const deviceLabel = buildDeviceLabel(ua);
+
+  // BYPASS: si el phone está en SESSION_BYPASS_PHONES, salteamos toda la
+  // lógica de slot/cooldown/cap y simplemente refrescamos o insertamos
+  // un row por sesión Supabase. Esto permite múltiples devices simultáneos
+  // sin restricciones (founder demo / soporte / debugging en producción).
+  if (isSessionLimitBypass(user.phone)) {
+    const { data: existingByAuth } = await supabase
+      .from("user_sessions")
+      .select("id, device_id")
+      .eq("user_id", user.id)
+      .eq("auth_session_id", authSessionId)
+      .maybeSingle();
+
+    if (existingByAuth) {
+      await supabase
+        .from("user_sessions")
+        .update({
+          last_seen_at: new Date().toISOString(),
+          device_label: deviceLabel,
+          device_id: existingByAuth.device_id ?? deviceId,
+        })
+        .eq("id", existingByAuth.id);
+      return withDeviceCookie({ ok: true, status: "bypass_refreshed" });
+    }
+
+    const { error } = await supabase.from("user_sessions").insert({
+      user_id: user.id,
+      device_type: deviceType,
+      device_label: deviceLabel,
+      device_id: deviceId,
+      auth_session_id: authSessionId,
+    });
+    if (error) {
+      return withDeviceCookie({ error: error.message }, 500);
+    }
+    return withDeviceCookie({ ok: true, status: "bypass_registered" });
+  }
 
   // 1. Hard cap mensual: ¿cuántos switches ya hizo en los últimos N días?
   const sinceISO = new Date(
