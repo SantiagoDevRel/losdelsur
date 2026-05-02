@@ -7,10 +7,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Disc3, Search, Download, User } from "lucide-react";
+import { Home, Disc3, Search, Camera, User } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
-type TabKey = "home" | "cds" | "search" | "library" | "perfil";
+type TabKey = "home" | "cds" | "search" | "tribuna" | "perfil";
 
 interface Tab {
   key: TabKey;
@@ -22,9 +22,9 @@ interface Tab {
 
 const TABS: Tab[] = [
   { key: "home", href: "/", label: "Inicio", Icon: Home, matches: (p) => p === "/" },
-  { key: "cds", href: "/cds", label: "CDs", Icon: Disc3, matches: (p) => p.startsWith("/cds") || p.startsWith("/cancion") },
+  { key: "cds", href: "/cds", label: "CDs", Icon: Disc3, matches: (p) => p.startsWith("/cds") || p.startsWith("/cancion") || p.startsWith("/library") },
   { key: "search", href: "/search", label: "Buscar", Icon: Search, matches: (p) => p.startsWith("/search") },
-  { key: "library", href: "/library", label: "Offline", Icon: Download, matches: (p) => p.startsWith("/library") },
+  { key: "tribuna", href: "/tribuna", label: "Tribuna", Icon: Camera, matches: (p) => p.startsWith("/tribuna") },
   { key: "perfil", href: "/perfil", label: "Perfil", Icon: User, matches: (p) => p.startsWith("/perfil") || p.startsWith("/login") },
 ];
 

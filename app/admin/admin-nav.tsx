@@ -6,12 +6,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, BarChart3, Bell, Users } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, Calendar, Camera, QrCode, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/admin", label: "INICIO", icon: BarChart3 },
+  { href: "/admin/partidos", label: "PARTIDOS", icon: Calendar },
+  { href: "/admin/fotos", label: "FOTOS", icon: Camera },
+  { href: "/admin/scan", label: "SCAN", icon: QrCode },
   { href: "/admin/push", label: "PUSH", icon: Bell },
-  { href: "/admin/users", label: "USUARIOS", icon: Users },
+  { href: "/admin/users", label: "USERS", icon: Users },
   { href: "/admin/analytics", label: "STATS", icon: BarChart3 },
 ] as const;
 
