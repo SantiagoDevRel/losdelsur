@@ -30,13 +30,17 @@ export async function GET(request: Request) {
     (() => {
       let q = admin
         .from("profiles")
-        .select("id, nombre, ciudad, combo, created_at, updated_at", { count: "exact" })
+        .select("id, apodo, nombre, ciudad, combo, created_at, updated_at", {
+          count: "exact",
+        })
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
       if (search) {
-        // Búsqueda simple: nombre/ciudad/combo ilike. Phone/email se
-        // matchean abajo via auth.users.
-        q = q.or(`nombre.ilike.%${search}%,ciudad.ilike.%${search}%,combo.ilike.%${search}%`);
+        // Búsqueda simple: apodo/nombre/ciudad/combo ilike. Phone/email
+        // se matchean abajo via auth.users.
+        q = q.or(
+          `apodo.ilike.%${search}%,nombre.ilike.%${search}%,ciudad.ilike.%${search}%,combo.ilike.%${search}%`,
+        );
       }
       return q;
     })(),
@@ -61,7 +65,10 @@ export async function GET(request: Request) {
     const a = authById.get(p.id) ?? { phone: null, email: null, last_sign_in_at: null };
     return {
       id: p.id,
-      nombre: p.nombre,
+      // Display: apodo (nuevo) > nombre (legacy). El admin UI ya usa el
+      // campo `nombre` para mostrar — mantenemos esa key pero rellenamos
+      // con apodo cuando exista para que se vea el nombre nuevo.
+      nombre: p.apodo ?? p.nombre,
       ciudad: p.ciudad,
       combo: p.combo,
       phone: a.phone,

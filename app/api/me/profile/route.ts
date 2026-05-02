@@ -17,10 +17,13 @@ export async function GET() {
     return NextResponse.json({ user: null, profile: null }, { status: 200 });
   }
 
-  // Enumeramos columnas — evitamos leakear PII si se agrega más adelante.
+  // Lee de la view v_perfil_sureno → trae profile + balance de puntos +
+  // stats de pasaporte en una sola query. RLS heredado de las tablas.
   const { data, error } = await supabase
-    .from("profiles")
-    .select("id, nombre, username, ciudad, combo, avatar_url, created_at, updated_at")
+    .from("v_perfil_sureno")
+    .select(
+      "id, apodo, nombre, username, ciudad, barrio, combo, socio_desde, avatar_url, subscription_tier, subscription_until, puntos_balance, partidos_asistidos, ciudades_visitadas",
+    )
     .eq("id", user.id)
     .maybeSingle();
 

@@ -18,18 +18,18 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/supabase/types";
+import type { PerfilSureno } from "@/lib/supabase/types";
 
 interface UserContextValue {
   user: User | null;
-  profile: Profile | null;
+  profile: PerfilSureno | null;
   loading: boolean;
   // Refrescar el profile desde /api/me/profile (server-side via cookies).
   refreshProfile: () => Promise<void>;
   // Setear el profile localmente sin re-fetch — para usar después de un
   // PATCH /api/profile que ya devolvió la data nueva. Evita un round-trip
   // extra y el riesgo de que la 2da request a supabase.co se cuelgue.
-  setProfileLocal: (p: Profile | null) => void;
+  setProfileLocal: (p: PerfilSureno | null) => void;
 }
 
 const Ctx = createContext<UserContextValue>({
@@ -42,7 +42,7 @@ const Ctx = createContext<UserContextValue>({
 
 interface MeResponse {
   user: { id: string; phone: string | null; email: string | null } | null;
-  profile: Profile | null;
+  profile: PerfilSureno | null;
 }
 
 async function fetchMe(signal?: AbortSignal): Promise<MeResponse | null> {
@@ -57,7 +57,7 @@ async function fetchMe(signal?: AbortSignal): Promise<MeResponse | null> {
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setPerfilSureno] = useState<PerfilSureno | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Cliente Supabase solo para escuchar onAuthStateChange (login/logout).
@@ -66,12 +66,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     const me = await fetchMe();
-    if (me?.profile) setProfile(me.profile);
-    else setProfile(null);
+    if (me?.profile) setPerfilSureno(me.profile);
+    else setPerfilSureno(null);
   }, []);
 
-  const setProfileLocal = useCallback((p: Profile | null) => {
-    setProfile(p);
+  const setProfileLocal = useCallback((p: PerfilSureno | null) => {
+    setPerfilSureno(p);
   }, []);
 
   useEffect(() => {
@@ -95,10 +95,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
           phone: me.user.phone ?? undefined,
           email: me.user.email ?? undefined,
         } as unknown as User);
-        setProfile(me.profile);
+        setPerfilSureno(me.profile);
       } else {
         setUser(null);
-        setProfile(null);
+        setPerfilSureno(null);
       }
       setLoading(false);
     })();
@@ -110,7 +110,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (event === "SIGNED_OUT") {
         setUser(null);
-        setProfile(null);
+        setPerfilSureno(null);
         return;
       }
       // SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED → re-fetch desde server.
@@ -122,10 +122,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
           phone: me.user.phone ?? undefined,
           email: me.user.email ?? undefined,
         } as unknown as User);
-        setProfile(me.profile);
+        setPerfilSureno(me.profile);
       } else {
         setUser(null);
-        setProfile(null);
+        setPerfilSureno(null);
       }
     });
 

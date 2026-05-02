@@ -1,6 +1,6 @@
 // components/register-gate.tsx
 // Modal que aparece UNA sola vez cuando el user se registra y todavía
-// no tiene `ciudad` seteada en su profile. Pide nombre + ciudad
+// no tiene `ciudad` seteada en su profile. Pide apodo + ciudad
 // (requeridos) y combo (opcional). Escribe a `profiles` y refresca el
 // provider.
 //
@@ -19,11 +19,11 @@ import { Loader2, MapPin, User as UserIcon, Users } from "lucide-react";
 import { searchCiudades } from "@/lib/ciudades";
 import { useUser } from "./user-provider";
 import { haptic } from "@/lib/haptic";
-import type { Profile } from "@/lib/supabase/types";
+import type { PerfilSureno } from "@/lib/supabase/types";
 
 export function RegisterGate() {
   const { user, profile, loading, setProfileLocal } = useUser();
-  const [nombre, setNombre] = useState("");
+  const [apodo, setApodo] = useState("");
   const [ciudad, setCiudad] = useState("");
   const [ciudadFocused, setCiudadFocused] = useState(false);
   const [combo, setCombo] = useState("");
@@ -53,10 +53,10 @@ export function RegisterGate() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const nombreFinal = nombre.trim();
+    const apodoFinal = apodo.trim();
     const ciudadFinal = ciudad.trim();
-    if (nombreFinal.length < 2) {
-      setErr("Decinos cómo te llamás");
+    if (apodoFinal.length < 2) {
+      setErr("Decinos tu apodo");
       return;
     }
     if (ciudadFinal.length < 2) {
@@ -81,14 +81,14 @@ export function RegisterGate() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nombre: nombreFinal,
+          apodo: apodoFinal,
           ciudad: ciudadFinal,
           combo: combo.trim() || null,
         }),
         signal: controller.signal,
       });
       const body = (await res.json().catch(() => null)) as
-        | { ok?: boolean; profile?: Profile; error?: string }
+        | { ok?: boolean; profile?: PerfilSureno; error?: string }
         | null;
       if (!res.ok || !body || !body.profile) {
         throw new Error(body?.error ?? `error ${res.status}`);
@@ -105,7 +105,7 @@ export function RegisterGate() {
       try {
         const meRes = await fetch("/api/me/profile", { cache: "no-store" });
         if (meRes.ok) {
-          const me = (await meRes.json()) as { profile: Profile | null };
+          const me = (await meRes.json()) as { profile: PerfilSureno | null };
           if (me.profile && me.profile.ciudad) {
             setProfileLocal(me.profile);
             return;
@@ -147,19 +147,19 @@ export function RegisterGate() {
         </p>
 
         <form onSubmit={submit} className="mt-5 flex flex-col gap-4">
-          {/* Nombre */}
+          {/* Apodo */}
           <div>
             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--color-verde-neon)]">
               <UserIcon size={12} />
-              ¿CÓMO TE LLAMÁS? *
+              ¿CUÁL ES TU APODO? *
             </label>
             <input
               type="text"
-              placeholder="Tu nombre o apodo"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Apodo o nombre con el que te conocen"
+              value={apodo}
+              onChange={(e) => setApodo(e.target.value)}
               maxLength={40}
-              autoComplete="given-name"
+              autoComplete="nickname"
               autoFocus
               className="mt-2 h-11 w-full rounded-lg border-2 border-white/20 bg-black px-3 text-[14px] font-semibold tracking-[0.02em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
               style={{ fontFamily: "var(--font-body)" }}
@@ -256,7 +256,7 @@ export function RegisterGate() {
             type="submit"
             disabled={
               saving ||
-              nombre.trim().length < 2 ||
+              apodo.trim().length < 2 ||
               ciudad.trim().length < 2
             }
             className="mt-1 flex h-12 items-center justify-center gap-2 rounded-lg bg-[var(--color-verde-neon)] text-[13px] font-extrabold uppercase tracking-[0.08em] text-black disabled:opacity-50"
