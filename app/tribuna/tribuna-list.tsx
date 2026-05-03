@@ -105,87 +105,82 @@ function PartidoCard({
   const isLink = tieneFotos && canVerFotos;
 
   const cardInner = (
-    <div className="rounded-xl border-2 border-white/10 bg-[#0a0a0a] p-4 transition-colors hover:border-[var(--color-verde-neon)]/40">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/50">
-                <Calendar size={10} />
-                {fecha.toLocaleDateString("es-CO", {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "short",
-                })}
-                {partido.competencia && (
-                  <>
-                    <span>·</span>
-                    <span>{partido.competencia}</span>
-                  </>
-                )}
-              </div>
-              <p
-                className="mt-1.5 truncate uppercase text-white"
-                style={{
-                  fontFamily: "var(--font-display), Anton, sans-serif",
-                  fontSize: 22,
-                  lineHeight: 1,
-                }}
-              >
-                {partido.es_local ? "VS " : "@ "}
-                {partido.rival}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/50">
-                <span className="flex items-center gap-1">
-                  <MapPin size={10} />
-                  {partido.ciudad}
-                </span>
-                {partido.resultado && (
-                  <>
-                    <span>·</span>
-                    <span className="font-extrabold text-[var(--color-verde-neon)]">
-                      {partido.resultado}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {tieneFotos ? (
-              <div className="flex items-center gap-2 text-[var(--color-verde-neon)]">
-                <Camera size={16} />
-                <span className="text-[14px] font-extrabold tabular-nums">
-                  {partido.fotos_total}
-                </span>
-                <ChevronRight size={16} className="text-white/40" />
-              </div>
-            ) : (
-              <span className="rounded-md border border-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white/40">
-                SIN FOTOS
-              </span>
+    <div
+      className={`rounded-xl border-2 bg-[#0a0a0a] p-4 transition-colors ${
+        tieneFotos
+          ? "border-[var(--color-verde-neon)]/30 hover:border-[var(--color-verde-neon)]"
+          : "border-white/10"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/50">
+            <Calendar size={10} />
+            {fecha.toLocaleDateString("es-CO", {
+              weekday: "short",
+              day: "2-digit",
+              month: "short",
+            })}
+            {partido.competencia && (
+              <>
+                <span>·</span>
+                <span>{partido.competencia}</span>
+              </>
             )}
           </div>
-
-          {/* Counts por sección */}
-          {tieneFotos && canVerFotos && (
-            <div className="mt-3 grid grid-cols-4 gap-1.5">
-              {(["SUR_A1", "SUR_A2", "SUR_B1", "SUR_B2"] as const).map((s) => {
-                const n = partido.fotos_por_seccion[s] ?? 0;
-                return (
-                  <div
-                    key={s}
-                    className={`rounded-md border px-1.5 py-1 text-center text-[9px] font-bold uppercase tracking-[0.08em] ${
-                      n > 0
-                        ? "border-[var(--color-verde-neon)]/40 bg-[var(--color-verde-neon)]/10 text-[var(--color-verde-neon)]"
-                        : "border-white/10 text-white/30"
-                    }`}
-                  >
-                    <div>{s.replace("SUR_", "")}</div>
-                    <div className="tabular-nums">{n}</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <p
+            className="mt-1.5 truncate uppercase text-white"
+            style={{
+              fontFamily: "var(--font-display), Anton, sans-serif",
+              fontSize: 22,
+              lineHeight: 1,
+            }}
+          >
+            {partido.es_local ? "VS " : "@ "}
+            {partido.rival}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/50">
+            <span className="flex items-center gap-1">
+              <MapPin size={10} />
+              {partido.ciudad}
+            </span>
+            {partido.resultado && (
+              <>
+                <span>·</span>
+                <span className="font-extrabold text-[var(--color-verde-neon)]">
+                  {partido.resultado}
+                </span>
+              </>
+            )}
+          </div>
         </div>
+
+        {tieneFotos && (
+          <div className="flex flex-col items-end gap-1 text-[var(--color-verde-neon)]">
+            <div className="flex items-center gap-1">
+              <Camera size={13} />
+              <span className="text-[14px] font-extrabold tabular-nums">
+                {partido.fotos_total}
+              </span>
+            </div>
+            <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/40">
+              fotos
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* CTA "ENTRAR" o estado vacío */}
+      {tieneFotos && canVerFotos ? (
+        <div className="mt-3 flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-verde-neon)] text-[11px] font-extrabold uppercase tracking-[0.12em] text-black">
+          ENTRAR <ChevronRight size={14} />
+        </div>
+      ) : !tieneFotos ? (
+        <div className="mt-3 flex h-10 items-center justify-center rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
+          SIN FOTOS TODAVÍA
+        </div>
+      ) : null}
+    </div>
   );
 
   return (
