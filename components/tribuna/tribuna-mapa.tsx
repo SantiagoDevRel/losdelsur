@@ -1,20 +1,17 @@
 // components/tribuna/tribuna-mapa.tsx
-// Vista frontal estilizada de la Tribuna Sur del Atanasio. Como se ve
-// parado en la cancha mirando los hinchas — con techo + alta + telón
-// "LOS DEL SUR" + baja + vallas publicitarias + cancha.
+// Vista aérea-frontal estilizada de la Tribuna Sur del Atanasio
+// Girardot. Sin techo, bowl curvo abierto, basado en la foto de
+// referencia que mandó el user:
+//   - Alta arriba: bays alternados AMARILLO + GRIS
+//   - Baja abajo: NARANJA uniforme
+//   - Banda azul horizontal al medio (walkway)
+//   - Columnas blancas verticales dividiendo ~10 bays
+//   - TRAPO verde-blanco-verde centrado con "LOS DEL SUR ·
+//     SIEMPRE PRESENTES" en letras NEGRAS sobre el blanco
+//   - Vallas LED + cancha al frente
 //
-// Estructura (de arriba a abajo):
-//
-//   ┌────────────[ techo ]────────────┐
-//   │  A1 (alta izq)  │  A2 (alta der) │   ~12 filas de gradas
-//   │═══════════════════════════════════│   ← TELÓN "LOS DEL SUR"
-//   │  B1 (baja izq)  │  B2 (baja der) │   ~14 filas de gradas
-//   │─────────── barrera ──────────────│
-//   │  vallas publicitarias            │
-//   ────────────[ cancha ]─────────────
-//
-// Cada cuadrante es clickeable. Estados visuales: activa (verde sólido
-// + halo), con fotos (relleno sutil neón), vacía (relleno neutro).
+// Cuatro sectores clickeables A1/A2/B1/B2 superpuestos como
+// polígonos transparentes con borde + tintado verde cuando activos.
 
 "use client";
 
@@ -29,101 +26,109 @@ interface Props {
   onChange: (s: SeccionTribuna) => void;
 }
 
+// Geometría compartida del bowl. ViewBox 0 0 300 200.
+// Top de alta:    y=30, x=30..270   (240 wide)
+// Middle (azul):  y=92, x=20..280   (260 wide)
+// Bottom de baja: y=152, x=10..290  (280 wide)
+//
+// Da una sensación de perspectiva aérea ligera: la tribuna se ensancha
+// hacia el frente (cancha). 10 bays verticales — cada uno también es
+// un trapecio finito.
+
+const NUM_BAYS = 10;
+
+function bayCornersAt(i: number, y: number): { x: number } {
+  // Linear interp del eje x según y entre top (y=30) y bottom (y=152).
+  // En top: x = 30 + i*24, en bottom: x = 10 + i*28.
+  const t = (y - 30) / (152 - 30);
+  const xTop = 30 + i * 24;
+  const xBot = 10 + i * 28;
+  return { x: xTop + (xBot - xTop) * t };
+}
+
+function altaBayPath(i: number): string {
+  // Alta = y 30..92.
+  const tl = bayCornersAt(i, 30).x;
+  const tr = bayCornersAt(i + 1, 30).x;
+  const ml = bayCornersAt(i, 92).x;
+  const mr = bayCornersAt(i + 1, 92).x;
+  return `M ${tl} 30 L ${tr} 30 L ${mr} 92 L ${ml} 92 Z`;
+}
+
+function bajaBayPath(i: number): string {
+  // Baja = y 92..152.
+  const ml = bayCornersAt(i, 92).x;
+  const mr = bayCornersAt(i + 1, 92).x;
+  const bl = bayCornersAt(i, 152).x;
+  const br = bayCornersAt(i + 1, 152).x;
+  return `M ${ml} 92 L ${mr} 92 L ${br} 152 L ${bl} 152 Z`;
+}
+
+// Sectores clickeables — A1/A2 = mitades de alta; B1/B2 = mitades de baja.
+// 5 bays cada uno (0-4 izq, 5-9 der).
+function sectorPath(side: "L" | "R", level: "A" | "B"): string {
+  const startBay = side === "L" ? 0 : 5;
+  const endBay = side === "L" ? 5 : 10;
+  const yTop = level === "A" ? 30 : 92;
+  const yBot = level === "A" ? 92 : 152;
+  const tl = bayCornersAt(startBay, yTop).x;
+  const tr = bayCornersAt(endBay, yTop).x;
+  const bl = bayCornersAt(startBay, yBot).x;
+  const br = bayCornersAt(endBay, yBot).x;
+  return `M ${tl} ${yTop} L ${tr} ${yTop} L ${br} ${yBot} L ${bl} ${yBot} Z`;
+}
+
 interface Sector {
   seccion: SeccionTribuna;
   pathD: string;
-  cx: number; // centroide x para el label
-  cy: number; // centroide y para el label
+  cx: number;
+  cy: number;
   short: string;
   a11y: string;
-  // Filas de gradas dentro del sector — "x1 y1 x2 y2" cada una.
-  // Más filas = más sensación de grandstand real.
-  rows: { y: number; x1: number; x2: number }[];
-}
-
-// ViewBox 0 0 200 160 — más alto que la versión anterior para meter
-// telón + vallas con espacio.
-//
-// Bandas Y:
-//    0..3    sky
-//    3..16   ROOF (techo curvo con estructura)
-//   16..62   ALTA (A1 | A2) — perspectiva trapezoidal
-//   62..70   TELÓN "LOS DEL SUR SIEMPRE PRESENTES"
-//   70..120  BAJA (B1 | B2) — más ancha
-//  120..124  BARRERA / FOSO
-//  124..136  VALLAS publicitarias
-//  136..160  CANCHA verde
-
-// Helper para generar líneas de gradas con perspectiva (las filas más
-// arriba son más cortas porque la tribuna se angosta hacia el techo).
-function rowsAlta(side: "L" | "R"): { y: number; x1: number; x2: number }[] {
-  // ALTA: y de 18 a 60. Lado izq: x de 18→100 (ensancha hacia abajo).
-  // Lado der: 100→182 → 100→190 (espejo).
-  const rows: { y: number; x1: number; x2: number }[] = [];
-  for (let i = 0; i < 11; i++) {
-    const y = 18 + (i * 42) / 10; // 11 líneas distribuidas
-    // Inclinación: arriba más angosto, abajo más ancho.
-    const t = i / 10;
-    const leftEdge = 18 - t * 8; // 18 → 10
-    const rightEdge = 182 + t * 8; // 182 → 190
-    if (side === "L") rows.push({ y, x1: leftEdge, x2: 100 });
-    else rows.push({ y, x1: 100, x2: rightEdge });
-  }
-  return rows;
-}
-
-function rowsBaja(side: "L" | "R"): { y: number; x1: number; x2: number }[] {
-  // BAJA: y de 72 a 118. Lado izq: x de 10→2 (ensancha más). Der espejo.
-  const rows: { y: number; x1: number; x2: number }[] = [];
-  for (let i = 0; i < 13; i++) {
-    const y = 72 + (i * 46) / 12;
-    const t = i / 12;
-    const leftEdge = 10 - t * 8; // 10 → 2
-    const rightEdge = 190 + t * 8; // 190 → 198
-    if (side === "L") rows.push({ y, x1: leftEdge, x2: 100 });
-    else rows.push({ y, x1: 100, x2: rightEdge });
-  }
-  return rows;
 }
 
 const SECTORS: Sector[] = [
   {
     seccion: "SUR_A1",
-    pathD: "M 18 18 L 100 18 L 100 60 L 10 60 Z",
-    cx: 55,
-    cy: 38,
+    pathD: sectorPath("L", "A"),
+    cx: 75,
+    cy: 60,
     short: "A1",
     a11y: "Sur alta izquierda",
-    rows: rowsAlta("L"),
   },
   {
     seccion: "SUR_A2",
-    pathD: "M 100 18 L 182 18 L 190 60 L 100 60 Z",
-    cx: 145,
-    cy: 38,
+    pathD: sectorPath("R", "A"),
+    cx: 225,
+    cy: 60,
     short: "A2",
     a11y: "Sur alta derecha",
-    rows: rowsAlta("R"),
   },
   {
     seccion: "SUR_B1",
-    pathD: "M 10 70 L 100 70 L 100 118 L 2 118 Z",
-    cx: 51,
-    cy: 95,
+    pathD: sectorPath("L", "B"),
+    cx: 70,
+    cy: 122,
     short: "B1",
     a11y: "Sur baja izquierda",
-    rows: rowsBaja("L"),
   },
   {
     seccion: "SUR_B2",
-    pathD: "M 100 70 L 190 70 L 198 118 L 100 118 Z",
-    cx: 149,
-    cy: 95,
+    pathD: sectorPath("R", "B"),
+    cx: 230,
+    cy: 122,
     short: "B2",
     a11y: "Sur baja derecha",
-    rows: rowsBaja("R"),
   },
 ];
+
+// Colores de los asientos.
+const SEAT_YELLOW = "#e5c43a";
+const SEAT_GRAY = "#a8a8a8";
+const SEAT_ORANGE = "#e87726";
+const WALKWAY_BLUE = "#5fa6c8";
+const COLUMN_WHITE = "#e8e8e8";
+const TRAPO_GREEN = "#0a7a32";
 
 export function TribunaMapa({ active, countsBySeccion, onChange }: Props) {
   const total = Object.values(countsBySeccion).reduce((a, b) => a + b, 0);
@@ -131,106 +136,200 @@ export function TribunaMapa({ active, countsBySeccion, onChange }: Props) {
   return (
     <div className="relative">
       <svg
-        viewBox="0 0 200 160"
+        viewBox="0 0 300 200"
         xmlns="http://www.w3.org/2000/svg"
         className="block w-full"
         role="group"
-        aria-label="Tribuna sur del Atanasio Girardot — vista frontal. Tocá una sección."
+        aria-label="Tribuna sur del Atanasio Girardot. Tocá una sección."
       >
         <defs>
           <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#050a08" />
-            <stop offset="100%" stopColor="#0a1410" />
+            <stop offset="0%" stopColor="#0a1a14" />
+            <stop offset="100%" stopColor="#162820" />
           </linearGradient>
-          <linearGradient id="roof-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1b1b1b" />
-            <stop offset="100%" stopColor="#070707" />
+          <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1d6b34" />
+            <stop offset="100%" stopColor="#0e3d1d" />
           </linearGradient>
-          <linearGradient id="grass-front" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#155227" />
-            <stop offset="100%" stopColor="#0a2e15" />
+          <linearGradient id="seatYellow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={SEAT_YELLOW} />
+            <stop offset="100%" stopColor="#b89924" />
           </linearGradient>
-          <linearGradient id="telon" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0c5520" />
-            <stop offset="100%" stopColor="#0a3d18" />
+          <linearGradient id="seatGray" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={SEAT_GRAY} />
+            <stop offset="100%" stopColor="#828282" />
           </linearGradient>
-          <radialGradient id="sectorActive" cx="50%" cy="50%" r="60%">
-            <stop offset="0%" stopColor="rgba(0,255,128,1)" />
-            <stop offset="100%" stopColor="rgba(0,255,128,0.78)" />
-          </radialGradient>
-          {/* Patrón sutil de "cabezas de hinchas" para los sectores
-              con fotos — mancha tenue */}
-          <pattern id="crowd" patternUnits="userSpaceOnUse" width="2.5" height="2.5">
-            <circle cx="1.25" cy="1.25" r="0.45" fill="rgba(255,255,255,0.07)" />
+          <linearGradient id="seatOrange" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={SEAT_ORANGE} />
+            <stop offset="100%" stopColor="#b85716" />
+          </linearGradient>
+          {/* Patrón de filas: líneas horizontales finas pegadas para
+              dar textura de "rows of seats" */}
+          <pattern id="rowsAlta" patternUnits="userSpaceOnUse" width="3" height="4">
+            <rect width="3" height="4" fill="transparent" />
+            <line x1="0" y1="0" x2="3" y2="0" stroke="rgba(0,0,0,0.18)" strokeWidth="0.4" />
+          </pattern>
+          <pattern id="rowsBaja" patternUnits="userSpaceOnUse" width="3" height="3.5">
+            <rect width="3" height="3.5" fill="transparent" />
+            <line x1="0" y1="0" x2="3" y2="0" stroke="rgba(0,0,0,0.2)" strokeWidth="0.4" />
           </pattern>
         </defs>
 
         {/* SKY background */}
-        <rect x="0" y="0" width="200" height="18" fill="url(#sky)" />
+        <rect x="0" y="0" width="300" height="30" fill="url(#sky)" />
 
-        {/* TECHO curvo con estructura */}
-        <g aria-hidden="true">
-          {/* Sombra del techo (curva ligera arriba) */}
-          <path
-            d="M 0 3 Q 100 0 200 3 L 195 16 L 5 16 Z"
-            fill="url(#roof-grad)"
-            stroke="rgba(255,255,255,0.18)"
-            strokeWidth="0.5"
-          />
-          {/* Vigas del techo (líneas verticales tenues) */}
-          {[20, 50, 80, 100, 120, 150, 180].map((x) => (
-            <line
-              key={x}
-              x1={x}
-              y1={16}
-              x2={x + (x < 100 ? -1 : x > 100 ? 1 : 0)}
-              y2={3}
-              stroke="rgba(255,255,255,0.14)"
-              strokeWidth="0.5"
+        {/* Árboles tropicales detrás (siluetas) */}
+        <g aria-hidden="true" opacity="0.5">
+          {[
+            { cx: 15, cy: 26, r: 7 },
+            { cx: 35, cy: 22, r: 9 },
+            { cx: 55, cy: 25, r: 6 },
+            { cx: 80, cy: 20, r: 8 },
+            { cx: 105, cy: 23, r: 7 },
+            { cx: 195, cy: 22, r: 8 },
+            { cx: 220, cy: 25, r: 6 },
+            { cx: 245, cy: 21, r: 9 },
+            { cx: 270, cy: 24, r: 7 },
+            { cx: 290, cy: 26, r: 6 },
+          ].map((t, i) => (
+            <circle
+              key={i}
+              cx={t.cx}
+              cy={t.cy}
+              r={t.r}
+              fill="#0d3a1c"
             />
           ))}
-          {/* Faldón inferior del techo (banda verde tenue) */}
-          <rect x="5" y="16" width="190" height="2" fill="rgba(0,255,128,0.12)" />
+        </g>
+
+        {/* ALTA — bays alternando amarillo/gris */}
+        <g aria-hidden="true">
+          {Array.from({ length: NUM_BAYS }, (_, i) => {
+            const isYellow = i % 2 === 0;
+            return (
+              <g key={`alta-${i}`}>
+                <path
+                  d={altaBayPath(i)}
+                  fill={isYellow ? "url(#seatYellow)" : "url(#seatGray)"}
+                />
+                <path d={altaBayPath(i)} fill="url(#rowsAlta)" />
+              </g>
+            );
+          })}
+        </g>
+
+        {/* COLUMNAS BLANCAS verticales (separadores entre bays) */}
+        <g aria-hidden="true">
+          {Array.from({ length: NUM_BAYS + 1 }, (_, i) => {
+            const xTop = bayCornersAt(i, 30).x;
+            const xBot = bayCornersAt(i, 152).x;
+            return (
+              <line
+                key={`col-${i}`}
+                x1={xTop}
+                y1={30}
+                x2={xBot}
+                y2={152}
+                stroke={COLUMN_WHITE}
+                strokeWidth="0.7"
+                opacity="0.85"
+              />
+            );
+          })}
+        </g>
+
+        {/* WALKWAY azul al medio */}
+        <g aria-hidden="true">
+          <path
+            d={`M ${bayCornersAt(0, 88).x} 88 L ${bayCornersAt(NUM_BAYS, 88).x} 88 L ${bayCornersAt(NUM_BAYS, 96).x} 96 L ${bayCornersAt(0, 96).x} 96 Z`}
+            fill={WALKWAY_BLUE}
+          />
           <line
-            x1="5"
-            y1="16"
-            x2="195"
-            y2="16"
-            stroke="rgba(0,255,128,0.35)"
+            x1={bayCornersAt(0, 88).x}
+            y1={88}
+            x2={bayCornersAt(NUM_BAYS, 88).x}
+            y2={88}
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth="0.4"
+          />
+          <line
+            x1={bayCornersAt(0, 96).x}
+            y1={96}
+            x2={bayCornersAt(NUM_BAYS, 96).x}
+            y2={96}
+            stroke="rgba(0,0,0,0.4)"
             strokeWidth="0.4"
           />
         </g>
 
-        {/* SECTORES alta + baja con sus filas */}
+        {/* BAJA — naranja */}
+        <g aria-hidden="true">
+          {Array.from({ length: NUM_BAYS }, (_, i) => (
+            <g key={`baja-${i}`}>
+              <path d={bajaBayPath(i)} fill="url(#seatOrange)" />
+              <path d={bajaBayPath(i)} fill="url(#rowsBaja)" />
+            </g>
+          ))}
+        </g>
+
+        {/* TRAPO centrado verde-blanco-verde con texto NEGRO */}
+        <g aria-hidden="true">
+          {/* Sombra debajo */}
+          <rect x="50" y="105" width="200" height="2" fill="rgba(0,0,0,0.35)" />
+          {/* 3 bandas */}
+          <rect x="50" y="80" width="200" height="8" fill={TRAPO_GREEN} />
+          <rect x="50" y="88" width="200" height="16" fill="#ffffff" />
+          <rect x="50" y="104" width="200" height="6" fill={TRAPO_GREEN} />
+          {/* Borde verde sutil */}
+          <rect
+            x="50"
+            y="80"
+            width="200"
+            height="30"
+            fill="none"
+            stroke="#06521f"
+            strokeWidth="0.5"
+          />
+          {/* Texto negro centrado */}
+          <text
+            x="150"
+            y="100"
+            textAnchor="middle"
+            fontSize="6"
+            fontWeight="900"
+            letterSpacing="0.5"
+            fill="#000"
+            style={{
+              fontFamily: "var(--font-display), Anton, Impact, sans-serif",
+              textTransform: "uppercase",
+            }}
+          >
+            LOS DEL SUR · SIEMPRE PRESENTES
+          </text>
+        </g>
+
+        {/* SECTORES clickeables (overlay transparente con borde + estado) */}
         {SECTORS.map((s) => {
           const isActive = active === s.seccion;
           const count = countsBySeccion[s.seccion] ?? 0;
           const hasPhotos = count > 0;
 
-          // Color base del sector — azulado/rojizo tenue para evocar
-          // la mezcla de colores de los asientos del Atanasio (azul,
-          // amarillo, rojo). Cuando no hay fotos: tono frío. Con fotos:
-          // tono verde tenue. Activa: verde sólido.
-          const fill = isActive
-            ? "url(#sectorActive)"
+          const overlayFill = isActive
+            ? "rgba(0,255,128,0.42)"
             : hasPhotos
-              ? "rgba(0,255,128,0.11)"
-              : "rgba(80,40,40,0.22)"; // rojizo desaturado (asientos sur)
-          const stroke = isActive
+              ? "rgba(0,255,128,0.10)"
+              : "rgba(0,0,0,0.001)"; // casi transparente para mantener clic
+          const overlayStroke = isActive
             ? "var(--color-verde-neon)"
             : hasPhotos
-              ? "rgba(0,255,128,0.55)"
-              : "rgba(255,255,255,0.18)";
-          const textColor = isActive
-            ? "#000"
+              ? "rgba(0,255,128,0.7)"
+              : "rgba(255,255,255,0.4)";
+          const labelBg = isActive
+            ? "var(--color-verde-neon)"
             : hasPhotos
-              ? "var(--color-verde-neon)"
-              : "rgba(255,255,255,0.7)";
-          const rowColor = isActive
-            ? "rgba(0,0,0,0.22)"
-            : hasPhotos
-              ? "rgba(0,255,128,0.18)"
-              : "rgba(255,255,255,0.08)";
+              ? "rgba(0,0,0,0.8)"
+              : "rgba(0,0,0,0.7)";
+          const labelText = isActive ? "#000" : "var(--color-verde-neon)";
 
           return (
             <g
@@ -252,45 +351,28 @@ export function TribunaMapa({ active, countsBySeccion, onChange }: Props) {
               }}
               style={{ cursor: "pointer", outline: "none" }}
             >
-              {/* Fondo del sector */}
               <path
                 d={s.pathD}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={isActive ? 1.6 : 0.9}
+                fill={overlayFill}
+                stroke={overlayStroke}
+                strokeWidth={isActive ? 1.8 : 1.2}
+                strokeDasharray={hasPhotos || isActive ? "0" : "2 2"}
                 strokeLinejoin="round"
               />
-              {/* Patrón crowd encima del fondo */}
-              <path d={s.pathD} fill="url(#crowd)" pointerEvents="none" />
 
-              {/* Filas de gradas */}
-              <g pointerEvents="none">
-                {s.rows.map((r, i) => (
-                  <line
-                    key={i}
-                    x1={r.x1}
-                    y1={r.y}
-                    x2={r.x2}
-                    y2={r.y}
-                    stroke={rowColor}
-                    strokeWidth="0.32"
-                  />
-                ))}
-              </g>
-
-              {/* Halo cuando active */}
+              {/* Halo cuando activa */}
               {isActive && (
                 <path
                   d={s.pathD}
                   fill="none"
                   stroke="var(--color-verde-neon)"
-                  strokeWidth="0.8"
+                  strokeWidth="1"
                   opacity="0.5"
                   pointerEvents="none"
                 >
                   <animate
                     attributeName="stroke-width"
-                    values="0.8;2.4;0.8"
+                    values="1;2.8;1"
                     dur="2.2s"
                     repeatCount="indefinite"
                   />
@@ -303,157 +385,96 @@ export function TribunaMapa({ active, countsBySeccion, onChange }: Props) {
                 </path>
               )}
 
-              {/* Label */}
-              <text
-                x={s.cx}
-                y={s.cy}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="900"
-                fill={textColor}
-                style={{ fontFamily: "var(--font-display), Anton, sans-serif" }}
-                paintOrder="stroke"
-                stroke={isActive ? "transparent" : "rgba(0,0,0,0.85)"}
-                strokeWidth="0.7"
-              >
-                {s.short}
-              </text>
-              <text
-                x={s.cx}
-                y={s.cy + 7}
-                textAnchor="middle"
-                fontSize="3.2"
-                fontWeight="800"
-                letterSpacing="0.3"
-                fill={textColor}
-                style={{ textTransform: "uppercase" }}
-                paintOrder="stroke"
-                stroke={isActive ? "transparent" : "rgba(0,0,0,0.85)"}
-                strokeWidth="0.5"
-              >
-                {hasPhotos ? `${count} ${count === 1 ? "FOTO" : "FOTOS"}` : "SIN FOTOS"}
-              </text>
+              {/* Pill con label + count */}
+              <g pointerEvents="none">
+                <rect
+                  x={s.cx - 16}
+                  y={s.cy - 7}
+                  rx="3"
+                  width="32"
+                  height="14"
+                  fill={labelBg}
+                  stroke={isActive ? "transparent" : "var(--color-verde-neon)"}
+                  strokeWidth="0.5"
+                />
+                <text
+                  x={s.cx - 9}
+                  y={s.cy + 2.5}
+                  textAnchor="middle"
+                  fontSize="6.5"
+                  fontWeight="900"
+                  fill={labelText}
+                  style={{ fontFamily: "var(--font-display), Anton, sans-serif" }}
+                >
+                  {s.short}
+                </text>
+                <text
+                  x={s.cx + 6}
+                  y={s.cy + 2.5}
+                  textAnchor="middle"
+                  fontSize="5"
+                  fontWeight="800"
+                  fill={labelText}
+                  style={{ fontFamily: "var(--font-body), system-ui" }}
+                >
+                  {count}
+                </text>
+              </g>
             </g>
           );
         })}
 
-        {/* TELÓN "LOS DEL SUR" entre alta y baja */}
+        {/* BARRERA / FOSO */}
         <g aria-hidden="true">
-          <rect x="0" y="62" width="200" height="8" fill="url(#telon)" />
-          {/* Borde superior + inferior */}
-          <line
-            x1="0"
-            y1="62"
-            x2="200"
-            y2="62"
-            stroke="rgba(0,255,128,0.45)"
-            strokeWidth="0.5"
+          <path
+            d={`M ${bayCornersAt(0, 152).x} 152 L ${bayCornersAt(NUM_BAYS, 152).x} 152 L 296 156 L 4 156 Z`}
+            fill="#000"
           />
           <line
-            x1="0"
-            y1="70"
-            x2="200"
-            y2="70"
-            stroke="rgba(0,255,128,0.45)"
-            strokeWidth="0.5"
-          />
-          <text
-            x="100"
-            y="67.5"
-            textAnchor="middle"
-            fontSize="4.2"
-            fontWeight="900"
-            letterSpacing="1.2"
-            fill="rgba(255,255,255,0.85)"
-            style={{
-              fontFamily: "var(--font-display), Anton, sans-serif",
-              textTransform: "uppercase",
-            }}
-          >
-            LOS DEL SUR · SIEMPRE PRESENTES
-          </text>
-        </g>
-
-        {/* ETIQUETAS ALTA / BAJA laterales */}
-        <g aria-hidden="true" pointerEvents="none">
-          <text
-            x="100"
-            y="22"
-            textAnchor="middle"
-            fontSize="2.8"
-            fontWeight="900"
-            letterSpacing="2"
-            fill="rgba(255,255,255,0.4)"
-            style={{ textTransform: "uppercase" }}
-          >
-            ALTA
-          </text>
-          <text
-            x="100"
-            y="76"
-            textAnchor="middle"
-            fontSize="2.8"
-            fontWeight="900"
-            letterSpacing="2"
-            fill="rgba(255,255,255,0.4)"
-            style={{ textTransform: "uppercase" }}
-          >
-            BAJA
-          </text>
-        </g>
-
-        {/* BARRERA + FOSO */}
-        <g aria-hidden="true">
-          <rect x="0" y="118" width="200" height="2" fill="#000" />
-          <rect x="0" y="120" width="200" height="2" fill="rgba(255,255,255,0.18)" />
-        </g>
-
-        {/* VALLAS publicitarias (banda con divisiones tipo paneles LED) */}
-        <g aria-hidden="true">
-          <rect x="0" y="124" width="200" height="10" fill="#0e0e0e" />
-          <rect
-            x="0"
-            y="124"
-            width="200"
-            height="10"
-            fill="none"
-            stroke="rgba(255,255,255,0.15)"
+            x1="4"
+            y1="156"
+            x2="296"
+            y2="156"
+            stroke="rgba(255,255,255,0.18)"
             strokeWidth="0.4"
           />
-          {[20, 40, 60, 80, 100, 120, 140, 160, 180].map((x) => (
+        </g>
+
+        {/* VALLAS LED publicitarias */}
+        <g aria-hidden="true">
+          <rect x="0" y="156" width="300" height="10" fill="#0e0e0e" />
+          {[30, 60, 90, 120, 150, 180, 210, 240, 270].map((x) => (
             <line
               key={x}
               x1={x}
-              y1={124}
+              y1={156}
               x2={x}
-              y2={134}
-              stroke="rgba(255,255,255,0.12)"
+              y2={166}
+              stroke="rgba(255,255,255,0.15)"
               strokeWidth="0.3"
             />
           ))}
-          {/* Glow neón sutil de los paneles */}
-          <rect x="0" y="124" width="200" height="1" fill="rgba(0,255,128,0.25)" />
+          <rect x="0" y="156" width="300" height="1" fill="rgba(0,255,128,0.3)" />
         </g>
 
         {/* CANCHA */}
         <g aria-hidden="true">
-          <rect x="0" y="136" width="200" height="24" fill="url(#grass-front)" />
-          {/* Líneas blancas */}
+          <rect x="0" y="166" width="300" height="34" fill="url(#grass)" />
           <line
             x1="0"
-            y1="140"
-            x2="200"
-            y2="140"
-            stroke="rgba(255,255,255,0.5)"
+            y1="170"
+            x2="300"
+            y2="170"
+            stroke="rgba(255,255,255,0.55)"
             strokeWidth="0.5"
           />
           <text
-            x="100"
-            y="153"
+            x="150"
+            y="190"
             textAnchor="middle"
-            fontSize="3"
+            fontSize="3.5"
             fontWeight="900"
-            letterSpacing="2.5"
+            letterSpacing="3"
             fill="rgba(255,255,255,0.4)"
             style={{ textTransform: "uppercase" }}
           >
