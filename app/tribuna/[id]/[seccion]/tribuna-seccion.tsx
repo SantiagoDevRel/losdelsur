@@ -136,7 +136,7 @@ export function TribunaSeccion({ partidoId, seccion }: Props) {
           className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white/60"
         >
           <ArrowLeft size={14} />
-          {partido.es_local ? "VS" : "@"} {partido.rival.toUpperCase()}
+          VS {partido.rival.toUpperCase()}
         </Link>
 
         <div className="mt-3 flex items-center gap-2">
@@ -167,22 +167,22 @@ export function TribunaSeccion({ partidoId, seccion }: Props) {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/50">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white/85">
           <span className="flex items-center gap-1">
-            <Calendar size={10} />
+            <Calendar size={11} />
             {fecha.toLocaleDateString("es-CO", {
               day: "2-digit",
               month: "short",
               year: "numeric",
             })}
           </span>
-          <span>·</span>
+          <span className="text-white/40">·</span>
           <span className="flex items-center gap-1">
-            <MapPin size={10} />
+            <MapPin size={11} />
             {partido.ciudad}
           </span>
-          <span>·</span>
-          <span>
+          <span className="text-white/40">·</span>
+          <span className="text-white/65">
             {fotos.length} {fotos.length === 1 ? "FOTO" : "FOTOS"}
           </span>
         </div>

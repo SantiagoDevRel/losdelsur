@@ -138,17 +138,16 @@ function PartidoCard({
               lineHeight: 1,
             }}
           >
-            {partido.es_local ? "VS " : "@ "}
-            {partido.rival}
+            VS {partido.rival}
           </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/50">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white/85">
             <span className="flex items-center gap-1">
-              <MapPin size={10} />
+              <MapPin size={11} />
               {partido.ciudad}
             </span>
             {partido.resultado && (
               <>
-                <span>·</span>
+                <span className="text-white/40">·</span>
                 <span className="font-extrabold text-[var(--color-verde-neon)]">
                   {partido.resultado}
                 </span>

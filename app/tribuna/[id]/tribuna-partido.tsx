@@ -141,23 +141,22 @@ export function TribunaPartido({ partidoId }: { partidoId: string }) {
             lineHeight: 0.85,
           }}
         >
-          {partido.es_local ? "VS " : "@ "}
-          {partido.rival.toUpperCase()}
+          VS {partido.rival.toUpperCase()}
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-white/50">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.08em] text-white/85">
           <span className="flex items-center gap-1">
-            <MapPin size={11} />
+            <MapPin size={12} />
             {partido.ciudad}
           </span>
           {partido.competencia && (
             <>
-              <span>·</span>
-              <span>{partido.competencia}</span>
+              <span className="text-white/40">·</span>
+              <span className="text-white/65">{partido.competencia}</span>
             </>
           )}
           {partido.resultado && (
             <>
-              <span>·</span>
+              <span className="text-white/40">·</span>
               <span className="font-extrabold text-[var(--color-verde-neon)]">
                 {partido.resultado}
               </span>
