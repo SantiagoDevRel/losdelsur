@@ -69,6 +69,10 @@ __pycache__/
 # manualmente cuando confirmes que el nuevo audio suena bien.
 content/cd*/*/audio.legacy.m4a
 
+# Backups creados por scripts/trim-leading-silence.py antes de modificar
+# in-place. No los commiteamos. Borrar con --restore o manualmente.
+content/cd*/*/audio.m4a.bak
+
 # JetBrains IDEs (Android Studio crea esta carpeta)
 .idea/
 
