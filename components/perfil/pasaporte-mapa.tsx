@@ -1,26 +1,46 @@
 // components/perfil/pasaporte-mapa.tsx
-// Mapa estilizado de Colombia para el pasaporte verde. Las ciudades
-// donde el user vio jugar al verde se marcan con stamp neón. El resto
-// quedan como puntos grises tenues.
+// Mapa de Colombia para el pasaporte verde. Las ciudades donde el user
+// vio jugar al verde aparecen como "stamps" verde neón estilo botón.
+// El resto quedan como puntos gris tenue.
 //
-// El path del país es una aproximación simplificada (no preciso a nivel
-// frontera), pero suficiente para que se lea "Colombia" de un vistazo.
-// Si después queremos un outline real, se baja de Natural Earth y se
-// simplifica con mapshaper a ~50 puntos.
+// Outline de Colombia: aproximación con puntos clave de la frontera
+// (Guajira, Caribe, Panamá, Pacífico, Pasto, Trapecio Amazónico,
+// Brasil/Vzla, Cúcuta, vuelta a la Guajira). No es geo-correcto al
+// detalle pero las formas distintivas (península de la Guajira NE +
+// trapecio amazónico S) hacen que se lea como Colombia de un vistazo.
 
 import { COLOMBIA_CITIES, findCity } from "@/lib/colombia-cities";
 
 interface Props {
-  ciudadesVisitadas: string[]; // Lista de ciudades del user (de partido_asistencia)
+  ciudadesVisitadas: string[];
 }
 
-// Outline simplificado de Colombia. ViewBox 0 0 100 140.
-// Esto NO es geo-correcto — es una silueta estilizada que da la idea.
+// ViewBox 0 0 100 145. Path clockwise empezando desde Punta Gallinas.
+// Frontera norte (Caribe), oeste (Pacífico/Panamá), sur (Trapecio),
+// este (Brasil/Venezuela).
 const COLOMBIA_PATH =
-  "M 38 6 L 44 8 L 50 11 L 56 18 L 60 22 L 64 28 L 68 34 L 70 42 L 70 50 L 66 56 L 62 60 L 60 66 L 64 72 L 60 80 L 54 86 L 50 92 L 44 100 L 38 108 L 30 116 L 22 122 L 16 128 L 12 124 L 14 116 L 18 108 L 20 100 L 22 92 L 22 84 L 20 76 L 18 68 L 18 60 L 22 52 L 24 44 L 22 36 L 18 30 L 14 24 L 12 18 L 14 12 L 18 8 L 24 6 L 30 4 L 38 6 Z";
+  // NE: Punta Gallinas → Castilletes
+  "M 59 1 L 64 0 L 67 4 L 65 9 " +
+  // Guajira sur → Maicao → Cúcuta (frontera Vzla zigzag)
+  "L 58 11 L 54 14 L 56 19 L 54 25 L 50 30 L 54 35 L 53 41 " +
+  // Arauca → Puerto Carreño (E)
+  "L 60 43 L 66 44 L 73 45 L 80 47 L 90 50 L 95 53 " +
+  // Amazonas (E down)
+  "L 96 60 L 95 70 L 96 80 L 92 88 L 90 95 " +
+  // Trapecio amazónico (S point: Leticia)
+  "L 86 105 L 80 118 L 76 130 L 73 132 L 71 128 L 68 120 L 62 110 L 56 102 " +
+  // Pasto → Ecuador
+  "L 50 100 L 40 100 L 28 98 L 18 96 L 14 94 L 12 90 " +
+  // Tumaco / Pacífico
+  "L 8 88 L 6 82 L 8 74 L 10 66 L 9 58 " +
+  // Bahía Solano / Chocó (Pacífico)
+  "L 7 50 L 5 42 L 8 36 L 12 32 L 14 28 " +
+  // Punta de Panamá (NW corner)
+  "L 11 24 L 13 22 L 17 26 L 19 30 L 22 28 " +
+  // Costa Caribe: Necoclí → Cartagena → Barranquilla → Santa Marta → Riohacha
+  "L 26 22 L 30 18 L 34 14 L 36 11 L 40 9 L 44 8 L 48 6 L 53 5 L 56 4 L 59 1 Z";
 
 export function PasaporteMapa({ ciudadesVisitadas }: Props) {
-  // Normalizar lo que llega y armar set de matches para lookup rápido.
   const visitedSet = new Set<string>();
   for (const c of ciudadesVisitadas) {
     const city = findCity(c);
@@ -32,81 +52,123 @@ export function PasaporteMapa({ ciudadesVisitadas }: Props) {
   return (
     <div className="relative">
       <svg
-        viewBox="0 0 100 140"
+        viewBox="0 0 100 145"
         xmlns="http://www.w3.org/2000/svg"
-        className="mx-auto block w-full max-w-[280px]"
+        className="mx-auto block w-full max-w-[300px]"
         role="img"
         aria-label="Mapa de Colombia con ciudades visitadas"
       >
+        <defs>
+          {/* Glow filter para los stamps activos */}
+          <filter id="cityGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
         {/* Outline del país */}
         <path
           d={COLOMBIA_PATH}
-          fill="rgba(255,255,255,0.04)"
-          stroke="rgba(255,255,255,0.2)"
-          strokeWidth="0.6"
+          fill="rgba(0,255,128,0.05)"
+          stroke="rgba(0,255,128,0.55)"
+          strokeWidth="0.7"
           strokeLinejoin="round"
+          strokeLinecap="round"
         />
+
+        {/* Líneas internas tenues — solo decorativas (sugieren Andes) */}
+        <g
+          aria-hidden="true"
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth="0.3"
+          fill="none"
+        >
+          <path d="M 18 30 Q 25 60 22 95" />
+          <path d="M 28 32 Q 32 65 28 100" />
+        </g>
 
         {/* Ciudades */}
         {COLOMBIA_CITIES.map((c) => {
           const visited = visitedSet.has(c.nombre);
           const isCasa = c.casa;
-          // Casa siempre se ve, aunque no esté visitada (la barra es de Medellín).
-          const highlight = visited || isCasa;
-          const dotColor = visited
-            ? "var(--color-verde-neon)"
-            : isCasa
-              ? "rgba(0,255,128,0.6)"
-              : "rgba(255,255,255,0.25)";
-          const dotSize = visited ? 2.6 : isCasa ? 2.2 : 1.4;
-          const showLabel = highlight; // Solo etiquetamos visited + casa
-          return (
-            <g key={c.nombre}>
-              {/* Halo si visited */}
-              {visited && (
-                <circle
-                  cx={c.x}
-                  cy={c.y}
-                  r={5}
-                  fill="var(--color-verde-neon)"
-                  opacity={0.18}
-                >
+          const showLabel = visited || isCasa;
+
+          if (visited) {
+            // Stamp tipo "botón" verde neón.
+            return (
+              <g key={c.nombre} filter="url(#cityGlow)">
+                {/* Halo pulse */}
+                <circle cx={c.x} cy={c.y} r="5" fill="var(--color-verde-neon)" opacity="0.18">
                   <animate
                     attributeName="r"
-                    values="3.5;6;3.5"
+                    values="3.5;6.5;3.5"
                     dur="2.4s"
                     repeatCount="indefinite"
                   />
                 </circle>
-              )}
+                {/* Botón sólido */}
+                <circle
+                  cx={c.x}
+                  cy={c.y}
+                  r="3.2"
+                  fill="var(--color-verde-neon)"
+                  stroke="#000"
+                  strokeWidth="0.6"
+                />
+                {/* Estrella interior (stamp) */}
+                <circle cx={c.x} cy={c.y} r="1.2" fill="#000" />
+              </g>
+            );
+          }
+
+          // No visitada: punto tenue (más visible para Medellín como "casa").
+          return (
+            <g key={c.nombre}>
               <circle
                 cx={c.x}
                 cy={c.y}
-                r={dotSize}
-                fill={dotColor}
-                stroke={visited ? "#000" : "none"}
-                strokeWidth={visited ? 0.4 : 0}
+                r={isCasa ? 1.8 : 1.2}
+                fill={isCasa ? "rgba(0,255,128,0.55)" : "rgba(255,255,255,0.3)"}
               />
-              {showLabel && (
-                <text
-                  x={c.x + 3.2}
-                  y={c.y + 1}
-                  fontFamily="var(--font-body), system-ui"
-                  fontSize="3"
-                  fontWeight={visited ? 800 : 600}
-                  letterSpacing="0.05"
-                  fill={visited ? "var(--color-verde-neon)" : "rgba(255,255,255,0.5)"}
-                  style={{ textTransform: "uppercase" }}
-                >
-                  {c.nombre}
-                </text>
-              )}
             </g>
+          );
+        })}
+
+        {/* Labels (separados de los círculos para no interferir con el filter) */}
+        {COLOMBIA_CITIES.map((c) => {
+          const visited = visitedSet.has(c.nombre);
+          const isCasa = c.casa;
+          if (!visited && !isCasa) return null;
+
+          // Posición del label: al costado del punto. Si la ciudad
+          // está en el borde derecho del país, label a la izquierda.
+          const labelLeft = c.x > 55;
+          return (
+            <text
+              key={`${c.nombre}-label`}
+              x={c.x + (labelLeft ? -3.5 : 3.5)}
+              y={c.y + 1}
+              textAnchor={labelLeft ? "end" : "start"}
+              fontFamily="var(--font-body), system-ui"
+              fontSize="3.2"
+              fontWeight={visited ? 900 : 700}
+              letterSpacing="0.05"
+              fill={visited ? "var(--color-verde-neon)" : "rgba(255,255,255,0.55)"}
+              style={{ textTransform: "uppercase" }}
+              paintOrder="stroke"
+              stroke="#000"
+              strokeWidth="0.4"
+            >
+              {c.nombre}
+            </text>
           );
         })}
       </svg>
 
-      {/* Footer del mapa: contador + ciudades fuera del mapa */}
+      {/* Footer del mapa */}
       <div className="mt-3 text-center">
         <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-white/50">
           {totalEnMapa === 0 && porFueraDelMapa === 0 ? (
@@ -120,7 +182,7 @@ export function PasaporteMapa({ ciudadesVisitadas }: Props) {
         </p>
         {porFueraDelMapa > 0 && (
           <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.08em] text-white/30">
-            +{porFueraDelMapa} fuera del mapa (internacional o no listada)
+            +{porFueraDelMapa} fuera del mapa
           </p>
         )}
       </div>

@@ -102,7 +102,9 @@ function PartidoCard({
 }) {
   const fecha = new Date(partido.fecha);
   const tieneFotos = partido.fotos_total > 0;
-  const isLink = tieneFotos && canVerFotos;
+  // Logueado puede entrar siempre — incluso sin fotos. Adentro ve el
+  // mapa de la tribuna y las secciones (con cero fotos al principio).
+  const isLink = canVerFotos;
 
   const cardInner = (
     <div
@@ -170,16 +172,19 @@ function PartidoCard({
         )}
       </div>
 
-      {/* CTA "ENTRAR" o estado vacío */}
-      {tieneFotos && canVerFotos ? (
-        <div className="mt-3 flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-verde-neon)] text-[11px] font-extrabold uppercase tracking-[0.12em] text-black">
-          ENTRAR <ChevronRight size={14} />
-        </div>
-      ) : !tieneFotos ? (
-        <div className="mt-3 flex h-10 items-center justify-center rounded-lg border border-white/10 text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
-          SIN FOTOS TODAVÍA
-        </div>
-      ) : null}
+      {/* CTA "ENTRAR". Si hay fotos: verde sólido. Si no: outline neón
+          tenue — igual entrás y ves el mapa, solo que las secciones
+          dicen "SIN FOTOS". Logged-out: no se renderiza CTA. */}
+      {canVerFotos &&
+        (tieneFotos ? (
+          <div className="mt-3 flex h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-verde-neon)] text-[11px] font-extrabold uppercase tracking-[0.12em] text-black">
+            ENTRAR <ChevronRight size={14} />
+          </div>
+        ) : (
+          <div className="mt-3 flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[var(--color-verde-neon)]/40 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[var(--color-verde-neon)]/80">
+            VER LA TRIBUNA <ChevronRight size={14} />
+          </div>
+        ))}
     </div>
   );
 
