@@ -23,10 +23,15 @@ interface Props {
 
 interface Quad {
   seccion: SeccionTribuna;
-  // Coordenadas en porcentajes del contenedor (más resilient a cambios
-  // de tamaño de imagen). Calibrados para una imagen en aspect-16:9
-  // donde la tribuna ocupa ~y 12%-72% y x 8%-92%, con el trapo
-  // dividiendo alta/baja a y ~46%.
+  // Coordenadas en porcentajes del contenedor — calibrados contra la
+  // imagen real generada con Pixa (vista aérea-frontal del Atanasio):
+  //   - Tribuna ocupa y 30%-78% del frame (resto = cielo arriba +
+  //     cancha/vallas abajo).
+  //   - Tribuna ocupa x 3%-97% — casi todo el ancho.
+  //   - Trapo "LOS DEL SUR SIEMPRE PRESENTES" divide alta/baja a
+  //     y ~50%-53%. Dejamos un gap pequeño para que el trapo quede
+  //     "limpio" y los overlays no lo cubran.
+  //   - Mitad izq/der parten en x 50%.
   x: number;
   y: number;
   w: number;
@@ -36,10 +41,10 @@ interface Quad {
 }
 
 const QUADS: Quad[] = [
-  { seccion: "SUR_A1", x: 8,  y: 12, w: 42, h: 34, short: "A1", nombre: "Sur Alta Izquierda" },
-  { seccion: "SUR_A2", x: 50, y: 12, w: 42, h: 34, short: "A2", nombre: "Sur Alta Derecha" },
-  { seccion: "SUR_B1", x: 8,  y: 46, w: 42, h: 26, short: "B1", nombre: "Sur Baja Izquierda" },
-  { seccion: "SUR_B2", x: 50, y: 46, w: 42, h: 26, short: "B2", nombre: "Sur Baja Derecha" },
+  { seccion: "SUR_A1", x: 3,  y: 30, w: 47, h: 20, short: "A1", nombre: "Sur Alta Izquierda" },
+  { seccion: "SUR_A2", x: 50, y: 30, w: 47, h: 20, short: "A2", nombre: "Sur Alta Derecha" },
+  { seccion: "SUR_B1", x: 3,  y: 54, w: 47, h: 24, short: "B1", nombre: "Sur Baja Izquierda" },
+  { seccion: "SUR_B2", x: 50, y: 54, w: 47, h: 24, short: "B2", nombre: "Sur Baja Derecha" },
 ];
 
 export function TribunaMapaImage({
