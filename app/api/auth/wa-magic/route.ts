@@ -30,6 +30,7 @@ import {
   DEVICE_ID_COOKIE_MAX_AGE_S,
   detectDeviceType,
   generateDeviceId,
+  isSessionLimitBypass,
   SESSION_POLICY,
 } from "@/lib/sessions/utils";
 
@@ -176,6 +177,36 @@ export async function GET(request: Request) {
       });
     }
     return res;
+  }
+
+  // BYPASS founder: skip slot/cooldown/cap. Insert nuevo row si no
+  // existe match exacto por auth_session_id, sino refresh.
+  if (isSessionLimitBypass(user.phone)) {
+    const { data: existingByAuth } = await supabase
+      .from("user_sessions")
+      .select("id, device_id")
+      .eq("user_id", user.id)
+      .eq("auth_session_id", authSessionId)
+      .maybeSingle();
+    if (existingByAuth) {
+      await supabase
+        .from("user_sessions")
+        .update({
+          last_seen_at: new Date().toISOString(),
+          device_label: deviceLabel,
+          device_id: existingByAuth.device_id ?? deviceId,
+        })
+        .eq("id", existingByAuth.id);
+    } else {
+      await supabase.from("user_sessions").insert({
+        user_id: user.id,
+        device_type: deviceType,
+        device_label: deviceLabel,
+        device_id: deviceId,
+        auth_session_id: authSessionId,
+      });
+    }
+    return redirectWithCookie(new URL(next, url.origin));
   }
 
   const { data: existing } = await supabase

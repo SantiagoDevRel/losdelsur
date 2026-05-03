@@ -16,7 +16,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decodeJWTSessionId } from "@/lib/sessions/utils";
+import { decodeJWTSessionId, isSessionLimitBypass } from "@/lib/sessions/utils";
 
 export const runtime = "nodejs";
 
@@ -35,6 +35,18 @@ export async function GET() {
   const authSessionId = decodeJWTSessionId(session.access_token);
   if (!authSessionId) {
     return NextResponse.json({ valid: false, reason: "bad_jwt" });
+  }
+
+  // BYPASS founder: nunca kickeable. Aunque el row no exista todavía
+  // (race con register), igual valid:true. Para el bypass user el
+  // session-limit literalmente no aplica.
+  if (isSessionLimitBypass(user.phone)) {
+    // Touch last_seen_at si encontramos el row — best effort.
+    await supabase
+      .from("user_sessions")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("auth_session_id", authSessionId);
+    return NextResponse.json({ valid: true, reason: "bypass" });
   }
 
   // Caso 1: mi sesión está registrada → todo OK.
