@@ -17,6 +17,7 @@ import { TabBar } from "@/components/tab-bar";
 import { AmbientVideo } from "@/components/ambient-video";
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { GlobalMiniPlayer } from "@/components/global-mini-player";
+import { SearchModalProvider } from "@/components/search-modal-provider";
 import { UserProvider } from "@/components/user-provider";
 import { RegisterGate } from "@/components/register-gate";
 import { SyncManager } from "@/components/sync-manager";
@@ -111,14 +112,16 @@ export default function RootLayout({
               persiste entre cambios de ruta. La Media Session API se
               conecta ahí para background playback en iOS/Android. */}
           <AudioPlayerProvider catalog={catalog}>
-            {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
-                (que está en z-0). El <html> tiene fondo negro como fallback. */}
-            <div className="relative z-10">{children}</div>
-            <GlobalMiniPlayer />
-            <TabBar />
-            <InstallPrompt />
-            <RegisterGate />
-            <SyncManager />
+            <SearchModalProvider cds={catalog}>
+              {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
+                  (que está en z-0). El <html> tiene fondo negro como fallback. */}
+              <div className="relative z-10">{children}</div>
+              <GlobalMiniPlayer />
+              <TabBar />
+              <InstallPrompt />
+              <RegisterGate />
+              <SyncManager />
+            </SearchModalProvider>
           </AudioPlayerProvider>
         </UserProvider>
         <ServiceWorkerRegister />

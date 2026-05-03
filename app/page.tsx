@@ -5,12 +5,13 @@
 // home, así la app carga instantánea sin bloquear en un video.
 
 import Link from "next/link";
-import { Download, Search } from "lucide-react";
+import { Download } from "lucide-react";
 import { getAllCDs, getAllCanciones } from "@/lib/content";
 import { CDCover } from "@/components/cd-cover";
 import { SongRow } from "@/components/song-row";
 import { SectionHeader } from "@/components/section-header";
 import { CreditsFooter } from "@/components/credits-footer";
+import { HomeSearchButton } from "@/components/home-search-button";
 
 export default function HomePage() {
   const cds = getAllCDs();
@@ -70,17 +71,9 @@ export default function HomePage() {
         <div className="eyebrow">¡BUENAS, SUREÑO!</div>
       </section>
 
-      {/* Buscador — link a /search para la búsqueda full-screen */}
+      {/* Buscador — abre el modal sin navegar para no cortar el audio. */}
       <section className="mb-6 px-5">
-        <Link
-          href="/search"
-          className="flex h-12 w-full items-center gap-3 rounded-lg border-2 border-white/20 bg-black/40 px-4 text-[13px] font-semibold uppercase tracking-[0.05em] text-white/50 transition-colors hover:border-[var(--color-verde-neon)] hover:text-white"
-        >
-          <Search size={18} aria-hidden />
-          <span className="flex-1 truncate">
-            Buscar en los {totalCanciones} cánticos...
-          </span>
-        </Link>
+        <HomeSearchButton totalCanciones={totalCanciones} />
       </section>
 
       {/* Carrusel de CDs */}
