@@ -17,7 +17,7 @@ export type SeccionTribuna = "SUR_A1" | "SUR_A2" | "SUR_B1" | "SUR_B2";
 interface Props {
   countsBySeccion: Record<SeccionTribuna, number>;
   onSelect: (s: SeccionTribuna) => void;
-  imageSrc?: string; // default "/tribuna-sur.jpg"
+  imageSrc?: string; // default "/tribuna-sur.webp"
   onImageError?: () => void;
 }
 
@@ -50,7 +50,7 @@ const QUADS: Quad[] = [
 export function TribunaMapaImage({
   countsBySeccion,
   onSelect,
-  imageSrc = "/tribuna-sur.jpg",
+  imageSrc = "/tribuna-sur.webp",
   onImageError,
 }: Props) {
   const [activeQuad, setActiveQuad] = useState<SeccionTribuna | null>(null);
