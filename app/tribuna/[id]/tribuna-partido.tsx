@@ -17,6 +17,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { TribunaMapa, type SeccionTribuna } from "@/components/tribuna/tribuna-mapa";
+import { TribunaMapaImage } from "@/components/tribuna/tribuna-mapa-image";
 import { haptic } from "@/lib/haptic";
 
 interface Partido {
@@ -47,6 +48,9 @@ export function TribunaPartido({ partidoId }: { partidoId: string }) {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Si la imagen base de la tribuna falla al cargar (no existe el
+  // archivo público todavía), caemos al SVG hand-crafted.
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,12 +169,22 @@ export function TribunaPartido({ partidoId }: { partidoId: string }) {
         </div>
       </header>
 
-      {/* Mapa visual de la tribuna sur */}
+      {/* Mapa visual de la tribuna sur. Preferimos la imagen
+          fotorealista (public/tribuna-sur.jpg). Si no carga, fallback
+          al SVG. */}
       <section className="px-5 pb-3 pt-2">
-        <TribunaMapa
-          countsBySeccion={counts}
-          onChange={(s) => goToSeccion(s)}
-        />
+        {imageFailed ? (
+          <TribunaMapa
+            countsBySeccion={counts}
+            onChange={(s) => goToSeccion(s)}
+          />
+        ) : (
+          <TribunaMapaImage
+            countsBySeccion={counts}
+            onSelect={(s) => goToSeccion(s)}
+            onImageError={() => setImageFailed(true)}
+          />
+        )}
       </section>
 
       {/* Lista de secciones con CTA explícito */}
