@@ -78,6 +78,66 @@ function incrementPlay(id: string) {
   }
 }
 
+// --- Shuffle helpers ---
+//
+// El shuffle se modela tipo Spotify:
+//   - shuffleHistory: stack de tracks YA reproducidos. El último
+//     elemento del stack es el currentTrack. prev() vuelve a
+//     history[length-2].
+//   - shuffleQueue: lista pre-mezclada de tracks que faltan por
+//     reproducir. next() consume el primero. Cuando se vacía, se
+//     refill con todos los que no están en history (o todos de nuevo
+//     si el ciclo se completó).
+//
+// Esto garantiza:
+//   - Yendo hacia adelante: nunca se repite ninguna canción del pool
+//     hasta que todas se hayan escuchado en este ciclo.
+//   - Yendo hacia atrás: lista predecible exactamente igual a lo que
+//     se vino escuchando (history.pop() + prepend al queue para que
+//     un siguiente next vuelva a tomarla).
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i]!;
+    a[i] = a[j]!;
+    a[j] = tmp;
+  }
+  return a;
+}
+
+function buildShufflePool(
+  currentTrack: Track | null,
+  mode: ShuffleMode,
+  catalog: CD[],
+): Track[] {
+  const all: Track[] = [];
+  if (mode === "cd" && currentTrack) {
+    for (const c of currentTrack.cd.canciones) {
+      all.push({ cancion: c, cd: currentTrack.cd });
+    }
+  } else if (mode === "all") {
+    for (const cd of catalog) {
+      for (const c of cd.canciones) {
+        all.push({ cancion: c, cd });
+      }
+    }
+  }
+  return all;
+}
+
+function refillShuffleQueue(history: Track[], pool: Track[]): Track[] {
+  const heard = new Set(history.map((t) => t.cancion.id));
+  const remaining = pool.filter((t) => !heard.has(t.cancion.id));
+  if (remaining.length > 0) return shuffleArray(remaining);
+  // Ciclo completo: todas las del pool están en history. Empezamos
+  // un nuevo ciclo con TODO el pool, excluyendo solo el current
+  // (último de history) para evitar dupe inmediato.
+  const lastId = history[history.length - 1]?.cancion.id;
+  return shuffleArray(pool.filter((t) => t.cancion.id !== lastId));
+}
+
 interface Props {
   children: ReactNode;
   // Catálogo completo (todos los CDs con todas sus canciones).
@@ -94,6 +154,17 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
   const [duration, setDuration] = useState(0);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
   const [shuffleMode, setShuffleMode] = useState<ShuffleMode>("off");
+
+  // Estado del shuffle Spotify-style: history (stack de lo escuchado,
+  // último = current) + queue (futuros pre-mezclados).
+  const [shuffleHistory, setShuffleHistory] = useState<Track[]>([]);
+  const [shuffleQueue, setShuffleQueue] = useState<Track[]>([]);
+  // Marker para distinguir advances internos (next/prev) de jumps
+  // externos (loadAndPlay, playTrack desde lista). Si un cambio de
+  // currentTrack matchea este id, el effect lo trata como advance
+  // interno (queue/history ya actualizados). Si no matchea, es jump
+  // externo → reset del shuffle state.
+  const advanceMarker = useRef<string | null>(null);
 
   // Router + pathname para sincronizar URL cuando playTrack cambia de
   // track y el usuario está en /cancion/*. No sincronizamos en
@@ -219,30 +290,29 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     });
   }, []);
 
-  // Genera la próxima pista según el modo actual. SIEMPRE devuelve un
-  // track (salvo que no haya currentTrack): cuando se termina el CD,
-  // wrapea al primero del mismo CD, o si es la última del último CD,
-  // al primero del primer CD. Así el botón next NUNCA es no-op.
+  // Genera la próxima pista según el modo actual.
+  //
+  // SHUFFLE (cd o all): peek del shuffleQueue. Si está vacío,
+  // simulamos el refill para devolver el primero — así el preload del
+  // upcomingTrack funciona sin tener que esperar a que el user toque
+  // next para saber qué viene.
+  //
+  // SECUENCIAL: index+1 dentro del CD; al final del CD, repeat=cd
+  // wrappea al primero, repeat=off salta al próximo CD o wrap global.
+  // SIEMPRE devuelve un track (salvo que no haya currentTrack).
   const pickNext = useCallback((): Track | null => {
     if (!currentTrack) return null;
-    const { cd, cancion } = currentTrack;
 
-    if (shuffleMode === "cd") {
-      const pool = cd.canciones.filter((c) => c.id !== cancion.id);
-      if (pool.length === 0) return { cancion, cd };
-      return { cancion: pool[Math.floor(Math.random() * pool.length)]!, cd };
+    if (shuffleMode !== "off") {
+      if (shuffleQueue[0]) return shuffleQueue[0];
+      // Queue vacía — simulamos refill para preload.
+      const pool = buildShufflePool(currentTrack, shuffleMode, catalog);
+      if (pool.length === 0) return null;
+      const refilled = refillShuffleQueue(shuffleHistory, pool);
+      return refilled[0] ?? null;
     }
-    if (shuffleMode === "all") {
-      const allTracks: Track[] = [];
-      for (const cdItem of catalog) {
-        for (const c of cdItem.canciones) {
-          if (c.id !== cancion.id) allTracks.push({ cancion: c, cd: cdItem });
-        }
-      }
-      if (allTracks.length === 0) return { cancion, cd };
-      return allTracks[Math.floor(Math.random() * allTracks.length)]!;
-    }
-    // Secuencial.
+
+    const { cd, cancion } = currentTrack;
     const idx = cd.canciones.findIndex((c) => c.id === cancion.id);
     if (idx >= 0 && idx < cd.canciones.length - 1) {
       return { cancion: cd.canciones[idx + 1]!, cd };
@@ -258,38 +328,44 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
       const nextCd = catalog[cdIdx + 1]!;
       if (nextCd.canciones[0]) return { cancion: nextCd.canciones[0], cd: nextCd };
     }
-    // Última del último CD → primer track del primer CD (wrap global).
     if (catalog[0]?.canciones[0]) return { cancion: catalog[0].canciones[0], cd: catalog[0] };
     return null;
-  }, [currentTrack, shuffleMode, repeatMode, catalog]);
+  }, [currentTrack, shuffleMode, shuffleQueue, shuffleHistory, repeatMode, catalog]);
 
-  // Track anterior. En shuffle es el mismo `upcomingTrack` (random);
-  // en modo normal es el sequential prev, con wrap al último si
-  // estamos en el primero.
+  // Track anterior.
+  //
+  // SHUFFLE: history[length-2] (penúltimo, porque el último ES current).
+  // Si history < 2 ítems, no hay prev (estamos al inicio de la sesión
+  // de shuffle).
+  //
+  // SECUENCIAL: index-1 dentro del CD; al inicio del CD, wrap o saltar
+  // al CD anterior.
   const pickPrev = useCallback((): Track | null => {
     if (!currentTrack) return null;
-    if (shuffleMode !== "off") return null; // en shuffle, prev = upcoming
+
+    if (shuffleMode !== "off") {
+      if (shuffleHistory.length < 2) return null;
+      return shuffleHistory[shuffleHistory.length - 2] ?? null;
+    }
+
     const { cd, cancion } = currentTrack;
     const idx = cd.canciones.findIndex((c) => c.id === cancion.id);
     if (idx > 0) return { cancion: cd.canciones[idx - 1]!, cd };
-    // Primera del CD. Si repeat=cd, wrap a la última del mismo CD.
     if (repeatMode === "cd") {
       const last = cd.canciones[cd.canciones.length - 1];
       return last ? { cancion: last, cd } : null;
     }
-    // Saltar al CD anterior.
     const cdIdx = catalog.findIndex((c) => c.id === cd.id);
     if (cdIdx > 0) {
       const prevCd = catalog[cdIdx - 1]!;
       const last = prevCd.canciones[prevCd.canciones.length - 1];
       if (last) return { cancion: last, cd: prevCd };
     }
-    // Primera del primer CD → última del último CD (wrap global).
     const lastCd = catalog[catalog.length - 1];
     const lastSong = lastCd?.canciones[lastCd.canciones.length - 1];
     if (lastCd && lastSong) return { cancion: lastSong, cd: lastCd };
     return null;
-  }, [currentTrack, shuffleMode, repeatMode, catalog]);
+  }, [currentTrack, shuffleMode, shuffleHistory, repeatMode, catalog]);
 
   // `upcomingTrack` es el próximo track que va a sonar cuando el user
   // toque Next o la canción termine. `prevTrack` es el anterior.
@@ -302,28 +378,159 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     setPrevTrack(pickPrev());
   }, [pickNext, pickPrev]);
 
+  // Mantiene shuffleHistory + shuffleQueue sincronizados con la
+  // realidad. Casos:
+  //   - shuffleMode pasa a "off": vaciamos todo.
+  //   - shuffleMode arranca / cambia entre cd/all: re-seedeamos
+  //     history=[currentTrack] + queue=fresh shuffle.
+  //   - currentTrack cambia con marker matching: ya lo manejaron
+  //     next() o prev() — no hacer nada.
+  //   - currentTrack cambia SIN marker: jump externo (loadAndPlay,
+  //     click en lista, swipe) → reset history/queue con el nuevo
+  //     track como base. Esto preserva "no repite hacia adelante"
+  //     desde el nuevo punto de partida.
+  const lastShuffleMode = useRef<ShuffleMode>("off");
+  const lastTrackIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const trackId = currentTrack?.cancion.id ?? null;
+    const modeChanged = lastShuffleMode.current !== shuffleMode;
+    const trackChanged = lastTrackIdRef.current !== trackId;
+    lastShuffleMode.current = shuffleMode;
+    lastTrackIdRef.current = trackId;
+
+    if (shuffleMode === "off") {
+      if (modeChanged) {
+        setShuffleHistory([]);
+        setShuffleQueue([]);
+        advanceMarker.current = null;
+      }
+      return;
+    }
+
+    if (!currentTrack) {
+      setShuffleHistory([]);
+      setShuffleQueue([]);
+      return;
+    }
+
+    if (modeChanged) {
+      const pool = buildShufflePool(currentTrack, shuffleMode, catalog);
+      setShuffleHistory([currentTrack]);
+      setShuffleQueue(refillShuffleQueue([currentTrack], pool));
+      advanceMarker.current = null;
+      return;
+    }
+
+    if (trackChanged) {
+      if (advanceMarker.current === currentTrack.cancion.id) {
+        // next/prev ya hicieron el trabajo.
+        advanceMarker.current = null;
+        return;
+      }
+      // Jump externo — reseteamos shuffle desde este nuevo punto.
+      const pool = buildShufflePool(currentTrack, shuffleMode, catalog);
+      setShuffleHistory([currentTrack]);
+      setShuffleQueue(refillShuffleQueue([currentTrack], pool));
+    }
+  }, [shuffleMode, currentTrack, catalog]);
+
   const next = useCallback(() => {
-    if (!upcomingTrack) return;
+    if (!currentTrack) return;
     haptic("tap");
-    playTrack(upcomingTrack);
-  }, [upcomingTrack, playTrack]);
+
+    if (shuffleMode !== "off") {
+      // Tomar primero de la queue. Si vacía, refill desde el pool.
+      let nextTrack: Track | undefined;
+      let newQueue: Track[];
+      if (shuffleQueue.length > 0) {
+        nextTrack = shuffleQueue[0];
+        newQueue = shuffleQueue.slice(1);
+      } else {
+        const pool = buildShufflePool(currentTrack, shuffleMode, catalog);
+        if (pool.length === 0) return;
+        const refilled = refillShuffleQueue(shuffleHistory, pool);
+        nextTrack = refilled[0];
+        newQueue = refilled.slice(1);
+      }
+      if (!nextTrack) return;
+      // Marker para que el effect no resetee este advance como jump.
+      advanceMarker.current = nextTrack.cancion.id;
+      setShuffleQueue(newQueue);
+      setShuffleHistory((h) => [...h, nextTrack!]);
+      playTrack(nextTrack);
+      return;
+    }
+
+    if (upcomingTrack) playTrack(upcomingTrack);
+  }, [
+    currentTrack,
+    shuffleMode,
+    shuffleQueue,
+    shuffleHistory,
+    catalog,
+    upcomingTrack,
+    playTrack,
+  ]);
 
   const prev = useCallback(() => {
     if (!currentTrack) return;
-    if (shuffleMode !== "off" && upcomingTrack) {
-      haptic("tap");
-      playTrack(upcomingTrack);
+    haptic("tap");
+
+    if (shuffleMode !== "off") {
+      if (shuffleHistory.length < 2) return; // sin historia, no hay prev
+      const oldCurrent = shuffleHistory[shuffleHistory.length - 1]!;
+      const newCurrent = shuffleHistory[shuffleHistory.length - 2]!;
+      advanceMarker.current = newCurrent.cancion.id;
+      // Pop el current viejo de history; prepend a la queue para que
+      // un próximo next vuelva a tomarlo (ida-vuelta predecible).
+      setShuffleHistory((h) => h.slice(0, -1));
+      setShuffleQueue((q) => [oldCurrent, ...q]);
+      playTrack(newCurrent);
       return;
     }
-    if (!prevTrack) return;
-    haptic("tap");
-    playTrack(prevTrack);
-  }, [currentTrack, shuffleMode, upcomingTrack, prevTrack, playTrack]);
+
+    if (prevTrack) playTrack(prevTrack);
+  }, [currentTrack, shuffleMode, shuffleHistory, prevTrack, playTrack]);
 
   const cycleShuffle = useCallback(() => {
     haptic("tap");
     setShuffleMode((m) => (m === "off" ? "cd" : m === "cd" ? "all" : "off"));
   }, []);
+
+  // Lock-screen "previous track" smart: como Spotify / Apple Music.
+  //   - 1ra pulsada: si la canción lleva > 3s, seek a 0 (restart).
+  //                  si lleva ≤ 3s, ir al track anterior real.
+  //   - 2da pulsada dentro de los siguientes 3s del restart: forzar
+  //                  el prev real (no hacer otro restart).
+  // Implementado con un timestamp del último restart en un ref.
+  const lastLockRestartAt = useRef<number>(0);
+  const lockScreenPrev = useCallback(() => {
+    const el = audioRef.current;
+    const t = el?.currentTime ?? 0;
+    const now = Date.now();
+    const sinceRestart = now - lastLockRestartAt.current;
+
+    // Si recién hicimos restart (≤ 3s atrás) Y la canción sigue al
+    // principio (≤ 3s tocados), tratar este press como prev real.
+    if (sinceRestart <= 3000 && t <= 3) {
+      lastLockRestartAt.current = 0;
+      prev();
+      return;
+    }
+
+    // Comportamiento default según posición.
+    if (t > 3) {
+      // Lejos del inicio → restart.
+      lastLockRestartAt.current = now;
+      seek(0);
+      return;
+    }
+    // Cerca del inicio (primera pulsada dentro de los 3s o canción
+    // recién empezada) → prev real.
+    lastLockRestartAt.current = 0;
+    prev();
+  }, [prev, seek]);
 
   // --- Media Session API ---
   // Cuando cambia la pista, decirle al OS qué suena. Esto habilita los
@@ -356,7 +563,7 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     navigator.mediaSession.setActionHandler("pause", () => {
       audioRef.current?.pause();
     });
-    navigator.mediaSession.setActionHandler("previoustrack", prev);
+    navigator.mediaSession.setActionHandler("previoustrack", lockScreenPrev);
     navigator.mediaSession.setActionHandler("nexttrack", next);
     // `seekto` queda activado para que la barra de progreso siga
     // siendo arrastrable desde el lockscreen (gesto deslizante).
@@ -370,7 +577,7 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     // 10s no tiene sentido — es más útil pasar al siguiente.
     navigator.mediaSession.setActionHandler("seekforward", null);
     navigator.mediaSession.setActionHandler("seekbackward", null);
-  }, [currentTrack, next, prev, seek]);
+  }, [currentTrack, next, lockScreenPrev, seek]);
 
   // Mantener el playbackState sincronizado con isPlaying.
   useEffect(() => {
