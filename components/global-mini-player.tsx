@@ -86,7 +86,7 @@ export function GlobalMiniPlayer() {
           <SwipeTracks
             onNext={next}
             onPrev={prev}
-            current={{ key: cancion.id, content: <MiniSlot cancion={cancion} cd={cd} /> }}
+            current={{ key: cancion.id, content: <MiniSlot cancion={cancion} cd={cd} breathing={isPlaying} /> }}
             prev={
               prevTrack
                 ? {
@@ -151,10 +151,11 @@ function MiniProgressBar({ duration, isPlaying }: { duration: number; isPlaying:
 }
 
 // Mini-tarjeta por slot (prev/current/next) del swipe.
-function MiniSlot({ cancion, cd }: { cancion: Cancion; cd: CD }) {
+// breathing solo se activa para el slot current cuando isPlaying.
+function MiniSlot({ cancion, cd, breathing = false }: { cancion: Cancion; cd: CD; breathing?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <CDCover cd={cd} size="sm" />
+      <CDCover cd={cd} size="sm" breathing={breathing} />
       <div className="min-w-0 flex-1">
         <div
           className="truncate text-[12px] font-extrabold uppercase leading-tight text-white"

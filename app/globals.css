@@ -232,3 +232,21 @@ a[href]:active,
 .diag-stripe {
   background: repeating-linear-gradient(-45deg, var(--color-verde-neon) 0 4px, #000 4px 10px);
 }
+
+/* Album art breathing: scale loop sutil mientras la canción suena.
+   Tomado de Apple Music / Spotify Now Playing — el cover "respira"
+   al ritmo de la respiración humana (~5s por ciclo) en vez del
+   beat de la música, que sería errático.
+   Pausamos la animación cuando prefers-reduced-motion está activo. */
+@keyframes lds-album-breathing {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+.lds-breathing {
+  animation: lds-album-breathing 5s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lds-breathing { animation: none; }
+}

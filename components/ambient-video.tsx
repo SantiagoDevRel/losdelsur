@@ -1,35 +1,92 @@
 // components/ambient-video.tsx
-// Video ambient del humo de la tribuna. Cubre toda la pantalla, detrás
-// del contenido, a ~38% de opacidad.
+// Video ambient detrás del contenido. Tiene 2 modos:
 //
-// Estrategia de carga robusta:
-//   1. Arranca mostrando el poster (primer frame del video, ~42 KB).
-//      Aparece instantáneo — si por lo que sea el video no reproduce,
-//      al menos el humo se ve como imagen estática.
-//   2. Monto el <video> inmediatamente (la versión comprimida son
-//      ~300 KB, no hace falta diferir). Preload=auto.
-//   3. En cuanto el navegador dice que puede reproducir (`loadeddata`
-//      o `canplay`), llamo a `.play()` explícitamente. Varios
-//      browsers móviles no respetan el atributo `autoplay` si no hay
-//      gesto del usuario previo, pero sí respetan `.play()` si el
-//      video está muted.
-//   4. Si `play()` es rechazado (ej. iOS Low Power Mode, Android data
-//      saver), el poster queda visible — no hay fondo negro vacío.
-//   5. Fade-in CSS al video cuando `playing` dispara.
+//   • TRIBUNA OFF (default fallback): humo extintor del Atanasio. Loop
+//     único. El comportamiento "viejo" preservado.
+//   • TRIBUNA ON: rotación slow-mo de clips reales de la barra
+//     (`/design-assets/tribuna/cXXXX.{webm,mp4}`). Cada clip dura ~7s
+//     y al terminar pasa al siguiente. Es el "visual orgasm" — banderas,
+//     bengalas, gente saltando en cámara lenta detrás de las letras.
+//
+// Estrategia de carga (compartida entre ambos modos):
+//   1. Mostramos el poster (`barra-bg-poster.jpg`, ~42 KB) de inmediato
+//      como fallback estático.
+//   2. Difiero el mount del <video> hasta DESPUÉS del primer paint
+//      (requestIdleCallback) — los bytes del video no compiten con el LCP.
+//   3. Una vez montado, preload="auto" baja el primer clip y el browser
+//      llama .play() en cuanto puede.
+//   4. Si Low Power Mode / autoplay policy bloquea, reintentamos al
+//      primer gesto del usuario.
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTribunaMode } from "@/lib/use-tribuna-mode";
+
+// Lista de clips disponibles (sin extensión — la elegimos según browser).
+// Orden: random shuffle al iniciar la sesión, después rotación secuencial
+// para que no se sienta repetitivo.
+const TRIBUNA_CLIPS = [
+  "c1523",
+  "c1524",
+  "c1525",
+  "c1526",
+  "c1544",
+  "c1571",
+  "c1578",
+  "c1637",
+];
+
+// Helper: dado un clip base, devuelve la URL al webm o mp4 según lo que
+// el browser pueda reproducir. WebM (vp9) tiene mejor compresión y todos
+// los browsers modernos lo soportan, incluido Safari 14.1+ (2021). MP4
+// (h264) queda como fallback para Safaris muy viejos.
+function clipUrl(base: string, isTribuna: boolean): string {
+  if (!isTribuna) {
+    // Modo humo extintor: archivo único, loop. Mantenemos la lógica
+    // vieja con doble formato vía <source> tags abajo.
+    return ""; // unused — se renderiza con <source> hardcoded.
+  }
+  if (typeof document === "undefined") {
+    // SSR: defaultear a webm. El browser real reemplaza al hidratar.
+    return `/design-assets/tribuna/${base}.webm`;
+  }
+  const v = document.createElement("video");
+  if (v.canPlayType('video/webm; codecs="vp9"').length > 0) {
+    return `/design-assets/tribuna/${base}.webm`;
+  }
+  return `/design-assets/tribuna/${base}.mp4`;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i]!;
+    a[i] = a[j]!;
+    a[j] = tmp;
+  }
+  return a;
+}
 
 export function AmbientVideo() {
+  const [tribunaMode] = useTribunaMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [playing, setPlaying] = useState(false);
-  // Difiere la carga del video hasta DESPUÉS del primer paint. Hasta
-  // entonces sólo se muestra el poster (~42 KB) y no se baja el video
-  // (~500 KB). Una vez la página está visible y estable, idle callback
-  // arranca la descarga del video y eventualmente fade-in al play.
   const [videoMounted, setVideoMounted] = useState(false);
+
+  // Orden aleatorio de los clips para esta sesión. Se calcula una sola
+  // vez al montar para que no se reshuffle en cada re-render.
+  const clipOrder = useMemo(() => shuffle(TRIBUNA_CLIPS), []);
+  const [clipIndex, setClipIndex] = useState(0);
+  const currentClipBase = clipOrder[clipIndex] ?? clipOrder[0]!;
+  const tribunaSrc = useMemo(
+    () => clipUrl(currentClipBase, true),
+    [currentClipBase],
+  );
+
+  // Defer del mount del <video> hasta después del primer paint.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const idle = (cb: () => void) => {
@@ -49,9 +106,6 @@ export function AmbientVideo() {
   }, []);
 
   // Parallax sutil: el fondo se mueve a ~6% del scroll del usuario.
-  // Da sensación de profundidad sin llamar la atención. Usa
-  // requestAnimationFrame para no bloquear el scroll. Respeta
-  // prefers-reduced-motion.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -65,8 +119,6 @@ export function AmbientVideo() {
         const y = window.scrollY;
         const el = containerRef.current;
         if (el) {
-          // -6% del scroll, capado a ±80px para no rebasar el margen
-          // extra del 10% que le dimos al video/poster.
           const raw = -y * 0.06;
           const capped = Math.max(-80, Math.min(80, raw));
           el.style.setProperty("--parallax-y", `${capped}px`);
@@ -101,8 +153,7 @@ export function AmbientVideo() {
     }
   }, []);
 
-  // Reintentar al volver al foreground (ej. el usuario cambió de tab
-  // y volvió, o bloqueó/desbloqueó el celular).
+  // Reintentar al volver al foreground.
   useEffect(() => {
     function onVis() {
       if (document.visibilityState === "visible" && !playing) tryPlay();
@@ -111,21 +162,31 @@ export function AmbientVideo() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [playing, tryPlay]);
 
+  // Cuando termina un clip de tribuna, rotar al próximo.
+  const onEnded = useCallback(() => {
+    if (!tribunaMode) return; // en modo humo el loop nativo lo maneja.
+    setClipIndex((i) => (i + 1) % clipOrder.length);
+  }, [tribunaMode, clipOrder.length]);
+
+  // Reset del clipIndex cuando cambia de modo (hidratación, toggle).
+  // Sino podría quedar apuntando a un índice obsoleto si el array cambió.
+  useEffect(() => {
+    setClipIndex(0);
+    setPlaying(false);
+  }, [tribunaMode]);
+
   return (
     <div
       ref={containerRef}
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
       style={{
-        // Base: gradiente oscuro (fallback si ni poster ni video cargan).
         background:
           "radial-gradient(ellipse at 50% 55%, rgba(10,125,62,0.18) 0%, transparent 55%)," +
           " linear-gradient(180deg, #020503 0%, #050a07 50%, #000 100%)",
       }}
     >
-      {/* Poster: siempre montado, se ve mientras el video no reproduce.
-          Es más alto que el viewport (120%) para que el parallax pueda
-          moverse sin mostrar bordes vacíos. */}
+      {/* Poster estático: visible mientras el video no reproduce. */}
       <div
         className="absolute bg-cover bg-center transition-opacity duration-[1200ms]"
         style={{
@@ -134,8 +195,6 @@ export function AmbientVideo() {
           right: 0,
           height: "120%",
           backgroundImage: "url(/design-assets/barra-bg-poster.jpg)",
-          // Cuando el video está reproduciendo, el poster se desvanece
-          // pero sin ir a 0 del todo (deja una base que se mezcla).
           opacity: playing ? 0 : 0.32,
           filter: "saturate(1.1) contrast(1.1)",
           transform: "scale(1.04) translateY(var(--parallax-y, 0px))",
@@ -143,46 +202,66 @@ export function AmbientVideo() {
         }}
       />
 
-      {/* Video diferido: hasta que videoMounted=true (idle callback
-          después del primer paint) NO se monta el <video>, así no se
-          dispara descarga ni metadata fetch. El poster sigue visible
-          desde el div de arriba con la imagen estática. Una vez
-          montado, preload="auto" baja el archivo y arranca play. */}
-      {videoMounted && (
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        loop
-        playsInline
-        // Después del primer paint, sí queremos preload="auto" para
-        // que el video arranque rápido — el costo de network ya no
-        // está compitiendo con el LCP.
-        preload="auto"
-        poster="/design-assets/barra-bg-poster.jpg"
-        className="absolute w-full object-cover transition-opacity duration-[1200ms]"
-        style={{
-          top: "-10%",
-          left: 0,
-          right: 0,
-          height: "120%",
-          opacity: playing ? 0.38 : 0,
-          filter: "saturate(1.15) contrast(1.1)",
-          transform: "scale(1.04) translateY(var(--parallax-y, 0px))",
-          willChange: "transform",
-        }}
-        onLoadedData={tryPlay}
-        onCanPlay={tryPlay}
-        onPlaying={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-      >
-        {/* Orden: WebM primero (mejor compresión, Android/Chrome/Firefox),
-            MP4 fallback (Safari/iOS). */}
-        {/* MP4 primero para iOS/Safari PWA (WebM a veces falla en
-            standalone mode). Chrome/Android también lo reproducen. */}
-        <source src="/design-assets/barra-bg-sm.mp4" type="video/mp4" />
-        <source src="/design-assets/barra-bg-sm.webm" type="video/webm" />
-      </video>
+      {videoMounted && tribunaMode && (
+        <video
+          // key forza remount cuando cambia el clip — sino el video
+          // queda con el src viejo cargado.
+          key={tribunaSrc}
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          // No loop: los clips rotan vía onEnded, no se repiten.
+          preload="auto"
+          src={tribunaSrc}
+          poster="/design-assets/barra-bg-poster.jpg"
+          className="absolute w-full object-cover transition-opacity duration-[800ms]"
+          style={{
+            top: "-10%",
+            left: 0,
+            right: 0,
+            height: "120%",
+            opacity: playing ? 0.42 : 0,
+            filter: "saturate(1.15) contrast(1.1)",
+            transform: "scale(1.04) translateY(var(--parallax-y, 0px))",
+            willChange: "transform",
+          }}
+          onLoadedData={tryPlay}
+          onCanPlay={tryPlay}
+          onPlaying={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={onEnded}
+        />
+      )}
+
+      {videoMounted && !tribunaMode && (
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="/design-assets/barra-bg-poster.jpg"
+          className="absolute w-full object-cover transition-opacity duration-[1200ms]"
+          style={{
+            top: "-10%",
+            left: 0,
+            right: 0,
+            height: "120%",
+            opacity: playing ? 0.38 : 0,
+            filter: "saturate(1.15) contrast(1.1)",
+            transform: "scale(1.04) translateY(var(--parallax-y, 0px))",
+            willChange: "transform",
+          }}
+          onLoadedData={tryPlay}
+          onCanPlay={tryPlay}
+          onPlaying={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+        >
+          <source src="/design-assets/barra-bg-sm.mp4" type="video/mp4" />
+          <source src="/design-assets/barra-bg-sm.webm" type="video/webm" />
+        </video>
       )}
 
       {/* Overlay oscurecedor para legibilidad del texto. */}

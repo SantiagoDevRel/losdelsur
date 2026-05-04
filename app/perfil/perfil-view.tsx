@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Calendar,
+  Film,
   Footprints,
   LogIn,
   LogOut,
@@ -28,6 +29,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { useTribunaMode } from "@/lib/use-tribuna-mode";
 import { CacheManager } from "@/components/cache-manager";
 import { CreditsFooter } from "@/components/credits-footer";
 import { InstallCard } from "@/components/install-card";
@@ -328,6 +330,8 @@ function LoggedInView() {
       </section>
 
       {/* Acciones (sesiones, admin, logout) */}
+      <PreferencesSection />
+
       <UserActions />
     </>
   );
@@ -423,6 +427,67 @@ function PuntoItem({
         +{puntos}
       </span>
     </li>
+  );
+}
+
+function PreferencesSection() {
+  const [tribunaMode, setTribunaMode] = useTribunaMode();
+  return (
+    <section className="mx-5 my-5 rounded-xl border-2 border-white/10 bg-[#0a0a0a] p-5">
+      <div className="eyebrow flex items-center gap-1.5 text-[var(--color-verde-neon)]">
+        <Film size={11} />
+        PREFERENCIAS
+      </div>
+      <h3
+        className="mt-1 uppercase text-white"
+        style={{
+          fontFamily: "var(--font-display), Anton, sans-serif",
+          fontSize: 22,
+          lineHeight: 1,
+        }}
+      >
+        MODO TRIBUNA
+      </h3>
+      <p className="mt-2 text-[12px] font-medium uppercase leading-snug tracking-[0.04em] text-white/65">
+        El fondo cambia del humo del Atanasio a clips slow-mo de la
+        barra: banderas, bengalas, gente saltando. Más inmersivo,
+        consume un poco más de batería.
+      </p>
+      <button
+        type="button"
+        onClick={() => setTribunaMode(!tribunaMode)}
+        aria-pressed={tribunaMode}
+        className="mt-3 flex h-12 w-full items-center justify-between rounded-lg border-2 border-white/15 px-4 text-left transition-colors hover:border-white/30"
+        style={{
+          background: tribunaMode ? "rgba(43,255,127,0.08)" : "transparent",
+          borderColor: tribunaMode ? "var(--color-verde-neon)" : undefined,
+        }}
+      >
+        <span
+          className="text-[12px] font-extrabold uppercase tracking-[0.08em]"
+          style={{ color: tribunaMode ? "var(--color-verde-neon)" : "rgba(255,255,255,0.7)" }}
+        >
+          {tribunaMode ? "ACTIVADO" : "DESACTIVADO"}
+        </span>
+        {/* Switch visual: track + thumb */}
+        <span
+          aria-hidden
+          className="relative h-6 w-11 rounded-full transition-colors"
+          style={{
+            background: tribunaMode ? "var(--color-verde-neon)" : "rgba(255,255,255,0.15)",
+          }}
+        >
+          <span
+            className="absolute top-0.5 size-5 rounded-full bg-white transition-transform"
+            style={{
+              left: 2,
+              transform: tribunaMode ? "translateX(20px)" : "translateX(0)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+            }}
+          />
+        </span>
+      </button>
+    </section>
   );
 }
 

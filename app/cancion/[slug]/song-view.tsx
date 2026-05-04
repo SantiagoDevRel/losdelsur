@@ -271,7 +271,7 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
               onPrev={playerPrev}
               current={{
                 key: cancion.id,
-                content: <TrackMini cancion={cancion} cd={cd} />,
+                content: <TrackMini cancion={cancion} cd={cd} breathing={isPlaying} />,
               }}
               prev={
                 player.prevTrack
@@ -546,10 +546,12 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
 
 // Mini ficha (cover + título + CD) que se renderiza en el slot del
 // SwipeTracks. Cada slot del swipe tiene una de estas: prev, current, next.
-function TrackMini({ cancion, cd }: { cancion: Cancion; cd: CD }) {
+// breathing=true marca al slot CURRENT cuando isPlaying, para que el
+// cover respire suavemente (~5s/ciclo). Los slots prev/next no animan.
+function TrackMini({ cancion, cd, breathing = false }: { cancion: Cancion; cd: CD; breathing?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-3 px-1">
-      <CDCover cd={cd} size="sm" />
+      <CDCover cd={cd} size="sm" breathing={breathing} />
       <div className="min-w-0 flex-1">
         <div
           className="truncate text-[12px] font-extrabold uppercase leading-tight text-white"

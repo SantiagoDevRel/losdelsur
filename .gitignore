@@ -64,6 +64,11 @@ __pycache__/
 # Source assets de diseño (PSDs, exports grandes) — no van al deploy.
 /assets/design-source/
 
+# Videos crudos de la barra (4k/120fps, pesan mucho). Se procesan con
+# scripts/process-tribuna-videos.py y los outputs quedan en
+# public/design-assets/tribuna/. Los crudos no van al repo.
+/raw-videos/
+
 # Backups del audio anterior (los crea redownload-audio.py por seguridad).
 # No los commiteamos — pesan ~1.5 MB c/u y son recuperables. Borralos
 # manualmente cuando confirmes que el nuevo audio suena bien.

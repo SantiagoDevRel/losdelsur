@@ -13,6 +13,10 @@ interface CDCoverProps {
   cd: CD;
   size?: Size;
   priority?: boolean; // marca `priority` cuando el cover está above-the-fold
+  // Cuando true, aplica una animación sutil de "breathing" (scale loop
+  // 5s) al contenedor circular. Pensado para el now-playing screen
+  // cuando isPlaying=true. La animación se pausa con prefers-reduced-motion.
+  breathing?: boolean;
 }
 
 const SIZES: Record<Size, number> = {
@@ -22,7 +26,7 @@ const SIZES: Record<Size, number> = {
   xl: 340,
 };
 
-export function CDCover({ cd, size = "md", priority = false }: CDCoverProps) {
+export function CDCover({ cd, size = "md", priority = false, breathing = false }: CDCoverProps) {
   const px = SIZES[size];
   const color = cd.color ?? "#17B85E";
   const hasImage = Boolean(cd.cover_image);
@@ -33,9 +37,10 @@ export function CDCover({ cd, size = "md", priority = false }: CDCoverProps) {
 
   return (
     <div className="relative shrink-0" style={{ width: px, height: px }}>
-      {/* Contenedor circular con la portada */}
+      {/* Contenedor circular con la portada. .lds-breathing aplica la
+          animación de scale loop cuando breathing=true (now playing). */}
       <div
-        className="relative size-full overflow-hidden rounded-full"
+        className={`relative size-full overflow-hidden rounded-full ${breathing ? "lds-breathing" : ""}`}
         style={{
           background: fallback,
           boxShadow:

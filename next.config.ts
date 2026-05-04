@@ -26,6 +26,10 @@ const withSerwist = withSerwistInit({
   //   - install-art/* (las ilustraciones de "instalá la PWA" que solo
   //     se ven antes de instalar — irrelevante post-install).
   //   - design-source/* (assets de diseño grandes, no consumidos en runtime).
+  //   - design-assets/tribuna/* (~42 MB de clips slow-mo de la barra
+  //     que solo se usan si el user activa Modo Tribuna). Se bajan
+  //     on-demand vía runtime cache (lds-design-assets-v1) cuando el
+  //     user toggle-ea el modo, no en la instalación de la PWA.
   globPublicPatterns: [
     "**/*",
     "!**/*.m4a",
@@ -34,6 +38,7 @@ const withSerwist = withSerwistInit({
     "!tribuna-sur.webp",
     "!install-art/**",
     "!design-source/**",
+    "!design-assets/tribuna/**",
   ],
 });
 
