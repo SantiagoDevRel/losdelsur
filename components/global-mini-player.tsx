@@ -20,6 +20,7 @@ import { CDCover } from "@/components/cd-cover";
 import { SwipeTracks } from "@/components/swipe-tracks";
 import { useAudioPlayer, useAudioTime } from "./audio-player-provider";
 import { useQueueModal } from "./queue-modal-provider";
+import { useSearchModal } from "./search-modal-provider";
 import type { CD, Cancion } from "@/lib/types";
 
 export function GlobalMiniPlayer() {
@@ -33,17 +34,29 @@ export function GlobalMiniPlayer() {
     next,
     prev,
   } = useAudioPlayer();
-  const { open: openQueue } = useQueueModal();
+  const { open: openQueue, isOpen: queueOpen } = useQueueModal();
+  const { close: closeSearch } = useSearchModal();
   const pathname = usePathname();
 
   if (!currentTrack) return null;
   if (pathname.startsWith("/cancion/")) return null;
+  // Si el queue modal está abierto, el mini-player es redundante
+  // (el modal mismo es la vista del player). Lo escondemos para no
+  // duplicar info. El search modal SÍ deja el mini-player visible
+  // (ver z-index abajo) — feedback de "algo está sonando" mientras
+  // el user sigue buscando.
+  if (queueOpen) return null;
 
   const { cancion, cd } = currentTrack;
 
   return (
     <div
-      className="fixed inset-x-0 z-30 border-t border-white/10 bg-black/95 backdrop-blur"
+      // z-[95]: por ENCIMA del search modal (z-[91]) para que cuando
+      // el user tape un resultado vea inmediatamente la canción
+      // sonando abajo. El queue modal (z-[91]) lo oculta vía el
+      // early-return de arriba (no por z, para que el modal pueda
+      // desplegarse full-height sin un mini-player flotante encima).
+      className="fixed inset-x-0 z-[95] border-t border-white/10 bg-black/95 backdrop-blur"
       // 60px del contenido del tab-bar (icon + label) +
       // safe-area-inset-bottom (home indicator iPhone). Coincide con
       // la altura computada del tab-bar — sino se solapan o queda hueco.
@@ -61,7 +74,12 @@ export function GlobalMiniPlayer() {
             button gracias a data-noswipe / threshold del swipe. */}
         <button
           type="button"
-          onClick={openQueue}
+          onClick={() => {
+            // Si veníamos del search modal, lo cerramos primero —
+            // sino quedan 2 modales apilados (queue arriba de search).
+            closeSearch();
+            openQueue();
+          }}
           aria-label="Abrir cola de reproducción"
           className="flex min-w-0 flex-1 items-center text-left"
         >
