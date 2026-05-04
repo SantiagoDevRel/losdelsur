@@ -44,7 +44,10 @@ export function GlobalMiniPlayer() {
   return (
     <div
       className="fixed inset-x-0 z-30 border-t border-white/10 bg-black/95 backdrop-blur"
-      style={{ bottom: 88 }}
+      // 60px del contenido del tab-bar (icon + label) +
+      // safe-area-inset-bottom (home indicator iPhone). Coincide con
+      // la altura computada del tab-bar — sino se solapan o queda hueco.
+      style={{ bottom: "calc(60px + max(env(safe-area-inset-bottom), 28px))" }}
     >
       {/* Barra fina de progreso — aislada en su propio componente que
           consume el context "fast" (currentTime) para que solo esta

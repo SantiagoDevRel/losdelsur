@@ -115,7 +115,9 @@ export function SearchModal({ cds, isOpen, onClose }: Props) {
         aria-hidden={!isOpen}
         className="fixed inset-x-0 bottom-0 z-[91] flex flex-col rounded-t-2xl border-t-2 border-white/10 bg-black transition-transform duration-[220ms] ease-out"
         style={{
-          top: "60px",
+          // safe-area-inset-top + 48px: la dynamic island del iPhone
+          // queda libre arriba y el drag handle del sheet visible.
+          top: "calc(env(safe-area-inset-top) + 48px)",
           transform: isOpen ? "translateY(0)" : "translateY(100%)",
         }}
       >
@@ -140,7 +142,10 @@ export function SearchModal({ cds, isOpen, onClose }: Props) {
                 value={raw}
                 onChange={(e) => setRaw(e.target.value)}
                 aria-label="Buscar cántico"
-                className="h-11 w-full rounded-lg border-2 border-white/20 bg-black pl-10 pr-3 text-[14px] font-semibold uppercase tracking-[0.05em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
+                // text-base (16px) en lugar de 14px: si el input es <16px,
+                // iOS hace zoom automático al focus, rompiendo el layout
+                // del bottom-sheet en mobile.
+                className="h-11 w-full rounded-lg border-2 border-white/20 bg-black pl-10 pr-3 text-base font-semibold uppercase tracking-[0.05em] text-white placeholder:text-white/30 focus:border-[var(--color-verde-neon)] focus:outline-none"
                 style={{ fontFamily: "var(--font-body)" }}
               />
             </div>

@@ -205,7 +205,7 @@ export function QueueModal({ isOpen, onClose }: Props) {
               onClick={cycleShuffle}
               aria-label={shuffleMode === "off" ? "Activar aleatorio" : "Desactivar aleatorio"}
               aria-pressed={shuffleMode === "on"}
-              className="grid size-10 place-items-center rounded-full"
+              className="grid size-11 place-items-center rounded-full"
               style={{
                 color: shuffleMode === "off" ? "rgb(255 255 255 / 0.7)" : "var(--color-verde-neon)",
                 background: shuffleMode === "off" ? "transparent" : "rgba(43,255,127,0.12)",
@@ -245,7 +245,7 @@ export function QueueModal({ isOpen, onClose }: Props) {
               type="button"
               onClick={cycleRepeat}
               aria-label="Modo repetir"
-              className="grid size-10 place-items-center rounded-full"
+              className="grid size-11 place-items-center rounded-full"
               style={{
                 color: repeatMode === "off" ? "rgb(255 255 255 / 0.7)" : "var(--color-verde-neon)",
                 background: repeatMode === "off" ? "transparent" : "rgba(43,255,127,0.12)",

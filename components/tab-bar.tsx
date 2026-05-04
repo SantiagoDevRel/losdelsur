@@ -42,7 +42,14 @@ export function TabBar() {
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-40 h-[88px] border-t border-white/10 bg-black/85 px-2 pb-7 pt-3 backdrop-blur-xl"
+      // safe-area-inset-bottom: en iPhone con notch, el home-indicator
+      // tapaba los labels del tab-bar. max(env, 28px) evita que en
+      // devices sin safe-area el padding baje del valor original.
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black/85 px-2 pt-3 backdrop-blur-xl"
+      style={{
+        height: "calc(60px + max(env(safe-area-inset-bottom), 28px))",
+        paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
+      }}
     >
       <ul className="flex h-full">
         {TABS.map(({ key, href, label, Icon, matches }) => {
@@ -66,16 +73,26 @@ export function TabBar() {
           return (
             <li key={key} className="flex-1">
               {key === "search" ? (
-                <button
-                  type="button"
-                  onClick={openSearch}
-                  aria-label="Abrir buscador"
+                // Mantenemos <Link href="/search"> para preservar la
+                // semántica nativa: el browser entiende que es una
+                // route real (long-press, "abrir en nueva pestaña",
+                // bookmark funcionan). El click normal lo
+                // interceptamos con preventDefault y abrimos el
+                // modal en su lugar.
+                <Link
+                  href={href}
+                  prefetch={false}
+                  aria-current={active ? "page" : undefined}
                   aria-expanded={searchOpen}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openSearch();
+                  }}
                   className={commonClass}
                   style={commonStyle}
                 >
                   {tabBody}
-                </button>
+                </Link>
               ) : (
                 <Link
                   href={href}
