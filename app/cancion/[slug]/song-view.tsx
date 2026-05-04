@@ -17,6 +17,7 @@ import { downloadAudio, isAudioCached } from "@/lib/download";
 import { haptic } from "@/lib/haptic";
 import { emit } from "@/lib/user-sync";
 import { useAudioPlayer, useAudioTime } from "@/components/audio-player-provider";
+import { useQueueModal } from "@/components/queue-modal-provider";
 
 function formatTime(s: number): string {
   if (!isFinite(s) || s < 0) return "0:00";
@@ -93,6 +94,7 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
   // Playback state viene del provider global (el audio sobrevive a
   // cambios de ruta + tiene Media Session para background).
   const player = useAudioPlayer();
+  const { open: openQueue } = useQueueModal();
   const {
     isPlaying,
     duration,
@@ -310,7 +312,12 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
           >
             <ArrowLeft size={20} />
           </Link>
-          <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={openQueue}
+            aria-label="Abrir cola de reproducción"
+            className="min-w-0 flex-1 text-left"
+          >
             <SwipeTracks
               onNext={playerNext}
               onPrev={playerPrev}
@@ -335,7 +342,7 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
                   : null
               }
             />
-          </div>
+          </button>
           <button
             type="button"
             onClick={togglePlay}

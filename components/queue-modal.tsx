@@ -1,26 +1,36 @@
 // components/queue-modal.tsx
 // Bottom sheet "AHORA SUENA + PRÓXIMAS" estilo YouTube Music.
-// Se abre al tap en el área del título del mini-player.
+// Se abre al tap en el área del título del mini-player O del header
+// del song-view. La canción sigue sonando, no hay nav.
 //
-// Estructura:
-//   - Header con drag handle + close.
-//   - "AHORA SUENA" — track actual con cover, título, CD, controles
-//     (prev / play / next + scrub bar + shuffle / repeat).
-//   - "PRÓXIMAS" — lista de los siguientes 30 tracks. Cada row tiene
-//     botones up/down para reordenar (en vez de drag-and-drop, que
-//     requiere @dnd-kit), botón de remove, y tap en el body del row
-//     jumpea a esa posición. El override de la queue se snapshotea
-//     al primer edit y persiste hasta que el user empiece otra
-//     canción desde fuera (search modal, lista de CD, etc).
+// Reordenable: cada row tiene un drag handle a la izquierda (icono
+// Menu, "= = ="). Tocás y arrastrás para mover la canción a otra
+// posición. @dnd-kit/sortable maneja el drag (touch + mouse +
+// keyboard accesible).
 
 "use client";
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ChevronRight,
-  ChevronUp,
+  Menu,
   Pause,
   Play,
   Repeat,
@@ -62,14 +72,36 @@ export function QueueModal({ isOpen, onClose }: Props) {
   } = useAudioPlayer();
   const router = useRouter();
 
-  // Lista de próximas. Recalcula cuando cambia currentTrack o cuando
-  // el user edita la queue (peekQueue depende del state interno).
-  const upcoming = useMemo(
-    () => peekQueue(MAX_QUEUE_VISIBLE),
-    // peekQueue se rehace cuando cualquier dependencia interna cambia,
-    // así que su identidad es suficiente como dep.
-    [peekQueue],
+  const upcoming = useMemo(() => peekQueue(MAX_QUEUE_VISIBLE), [peekQueue]);
+
+  // IDs estables por canción para que dnd-kit pueda trackear el item
+  // durante un drag. Si hay dupes (mismo cancion.id repetida en la
+  // queue, raro pero posible) le agregamos un sufijo posicional.
+  const ids = useMemo(() => {
+    const seen = new Map<string, number>();
+    return upcoming.map((t) => {
+      const base = t.cancion.id;
+      const count = seen.get(base) ?? 0;
+      seen.set(base, count + 1);
+      return count === 0 ? base : `${base}__${count}`;
+    });
+  }, [upcoming]);
+
+  // Sensors: distance:5 evita que un tap accidental inicie un drag
+  // (el user queda libre para tap-to-jumpear sin disparar drag).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    reorderQueue(from, to);
+  }
 
   // Esc cierra.
   useEffect(() => {
@@ -156,9 +188,7 @@ export function QueueModal({ isOpen, onClose }: Props) {
           </div>
         </div>
 
-        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto pb-6">
-          {/* Now-playing card */}
           {currentTrack ? (
             <NowPlayingCard
               cancion={currentTrack.cancion}
@@ -181,7 +211,6 @@ export function QueueModal({ isOpen, onClose }: Props) {
             </p>
           )}
 
-          {/* Queue */}
           <div className="border-t border-white/10 px-5 pb-2 pt-5">
             <div className="eyebrow">PRÓXIMAS · {upcoming.length}</div>
           </div>
@@ -191,102 +220,27 @@ export function QueueModal({ isOpen, onClose }: Props) {
               Vacío. Reordená o agregá canciones para llenar la cola.
             </p>
           ) : (
-            <ul>
-              {upcoming.map((t, i) => (
-                <li
-                  key={`${t.cancion.id}-${i}`}
-                  className="flex items-stretch border-b border-white/[0.06]"
-                >
-                  {/* Reorder controls (up/down). Up disabled en idx 0,
-                      down disabled en último. */}
-                  <div className="flex flex-col justify-center gap-0.5 px-2">
-                    <button
-                      type="button"
-                      onClick={() => reorderQueue(i, i - 1)}
-                      disabled={i === 0}
-                      aria-label="Subir"
-                      className="grid size-7 place-items-center rounded text-white/50 transition-colors hover:bg-white/[0.05] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reorderQueue(i, i + 1)}
-                      disabled={i === upcoming.length - 1}
-                      aria-label="Bajar"
-                      className="grid size-7 place-items-center rounded text-white/50 transition-colors hover:bg-white/[0.05] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                  </div>
-
-                  {/* Body — tap jumpea */}
-                  <button
-                    type="button"
-                    onClick={() => jumpToQueueIndex(i)}
-                    className="flex flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
-                  >
-                    <div
-                      aria-hidden
-                      className="w-6 text-center font-black"
-                      style={{
-                        fontFamily: "var(--font-display), Anton, sans-serif",
-                        fontSize: 16,
-                        color:
-                          t.cancion.favorita || t.cancion.ready
-                            ? "var(--color-verde-neon)"
-                            : "#555",
-                      }}
-                    >
-                      {String(i + 1).padStart(2, "0")}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className="flex items-center gap-1.5 truncate font-bold uppercase"
-                        style={{ fontSize: 14, letterSpacing: "0.02em" }}
-                      >
-                        <span className="truncate">{t.cancion.titulo}</span>
-                        {t.cancion.favorita && (
-                          <span
-                            aria-label="favorita"
-                            style={{ color: "var(--color-verde-neon)", fontSize: 10 }}
-                          >
-                            ★
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em]"
-                        style={{ color: "#888" }}
-                      >
-                        CD {t.cd.cd_numero} · {t.cd.cd_titulo}
-                        {t.cancion.duracion ? ` · ${t.cancion.duracion}` : ""}
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Open in song page */}
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateQueue(i)}
-                    aria-label={`Ir a la página de ${t.cancion.titulo}`}
-                    className="grid w-9 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-
-                  {/* Remove */}
-                  <button
-                    type="button"
-                    onClick={() => removeFromQueue(i)}
-                    aria-label="Quitar de la cola"
-                    className="grid w-10 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={onDragEnd}
+            >
+              <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                <ul>
+                  {upcoming.map((t, i) => (
+                    <SortableQueueRow
+                      key={ids[i]}
+                      id={ids[i]!}
+                      track={t}
+                      index={i}
+                      onJump={() => jumpToQueueIndex(i)}
+                      onNavigate={() => handleNavigateQueue(i)}
+                      onRemove={() => removeFromQueue(i)}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>
@@ -294,8 +248,127 @@ export function QueueModal({ isOpen, onClose }: Props) {
   );
 }
 
-// Sub-componente de la card "Ahora suena". Aislado para que el tick
-// de currentTime (4 Hz) solo re-renderice el ScrubBar, no toda la card.
+// ---- Sortable row ----
+
+interface SortableRowProps {
+  id: string;
+  index: number;
+  track: { cancion: Cancion; cd: CD };
+  onJump: () => void;
+  onNavigate: () => void;
+  onRemove: () => void;
+}
+
+function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    // Mientras drageamos, ponemos zIndex alto para que la fila quede
+    // por encima de las otras (sino la sombra de overlap se ve mal).
+    zIndex: isDragging ? 10 : "auto",
+    background: isDragging ? "rgba(255,255,255,0.04)" : undefined,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-stretch border-b border-white/[0.06]"
+    >
+      {/* Drag handle — sólo este botón inicia drag (listeners attached
+          acá, no en toda la fila). Cursor cambia a grab/grabbing. */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Arrastrar para reordenar"
+        // touch-none: en mobile, prevenir scroll vertical accidental
+        // mientras el user arrastra. dnd-kit lo necesita.
+        className="grid w-10 shrink-0 cursor-grab touch-none place-items-center text-white/40 transition-colors hover:bg-white/[0.05] hover:text-white active:cursor-grabbing"
+      >
+        <Menu size={16} />
+      </button>
+
+      {/* Body — tap jumpea */}
+      <button
+        type="button"
+        onClick={onJump}
+        className="flex flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
+      >
+        <div
+          aria-hidden
+          className="w-6 text-center font-black"
+          style={{
+            fontFamily: "var(--font-display), Anton, sans-serif",
+            fontSize: 16,
+            color:
+              track.cancion.favorita || track.cancion.ready
+                ? "var(--color-verde-neon)"
+                : "#555",
+          }}
+        >
+          {String(index + 1).padStart(2, "0")}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div
+            className="flex items-center gap-1.5 truncate font-bold uppercase"
+            style={{ fontSize: 14, letterSpacing: "0.02em" }}
+          >
+            <span className="truncate">{track.cancion.titulo}</span>
+            {track.cancion.favorita && (
+              <span
+                aria-label="favorita"
+                style={{ color: "var(--color-verde-neon)", fontSize: 10 }}
+              >
+                ★
+              </span>
+            )}
+          </div>
+          <div
+            className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em]"
+            style={{ color: "#888" }}
+          >
+            CD {track.cd.cd_numero} · {track.cd.cd_titulo}
+            {track.cancion.duracion ? ` · ${track.cancion.duracion}` : ""}
+          </div>
+        </div>
+      </button>
+
+      {/* Open in song page */}
+      <button
+        type="button"
+        onClick={onNavigate}
+        aria-label={`Ir a la página de ${track.cancion.titulo}`}
+        className="grid w-9 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
+      >
+        <ChevronRight size={18} />
+      </button>
+
+      {/* Remove */}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Quitar de la cola"
+        className="grid w-10 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
+      >
+        <Trash2 size={16} />
+      </button>
+    </li>
+  );
+}
+
+// ---- Now-playing card ----
+
 interface NowPlayingProps {
   cancion: Cancion;
   cd: CD;
@@ -353,19 +426,15 @@ function NowPlayingCard(props: NowPlayingProps) {
         </div>
       </button>
 
-      {/* Scrub bar */}
       <ScrubBar duration={duration} onSeek={onSeek} />
 
-      {/* Controles */}
       <div className="mt-3 flex items-center justify-between">
         <button
           type="button"
           onClick={onCycleShuffle}
           aria-label="Modo shuffle"
           className="grid size-10 place-items-center rounded-full"
-          style={{
-            color: shuffleMode === "off" ? "#888" : "var(--color-verde-neon)",
-          }}
+          style={{ color: shuffleMode === "off" ? "#888" : "var(--color-verde-neon)" }}
         >
           <Shuffle size={18} />
         </button>
@@ -402,9 +471,7 @@ function NowPlayingCard(props: NowPlayingProps) {
           onClick={onCycleRepeat}
           aria-label="Modo repetir"
           className="grid size-10 place-items-center rounded-full"
-          style={{
-            color: repeatMode === "off" ? "#888" : "var(--color-verde-neon)",
-          }}
+          style={{ color: repeatMode === "off" ? "#888" : "var(--color-verde-neon)" }}
         >
           {repeatMode === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
         </button>
@@ -413,7 +480,6 @@ function NowPlayingCard(props: NowPlayingProps) {
   );
 }
 
-// Aislado para que el tick del fast context no re-renderee la card.
 function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
   const currentTime = useAudioTime();
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -434,10 +500,7 @@ function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) 
           onSeek(Math.max(0, Math.min(1, ratio)) * duration);
         }}
       >
-        <div
-          className="h-full rounded-full bg-white"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-1.5 flex justify-between text-[10px] font-medium uppercase tracking-[0.08em] text-white/40">
         <span>{fmt(currentTime)}</span>
