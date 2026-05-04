@@ -21,7 +21,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAudioPlayer } from "./audio-player-provider";
-import { useTribunaMode } from "@/lib/use-tribuna-mode";
+import { useTribunaModes } from "@/lib/use-tribuna-mode";
 
 const BAR_COUNT = 32;
 const VERDE_NEON = "#2BFF7F";
@@ -61,12 +61,15 @@ function ensureWebAudio(audio: HTMLAudioElement): AnalyserNode | null {
 
 export function AudioVisualizer() {
   const { audioRef, isPlaying } = useAudioPlayer();
-  const [tribunaMode] = useTribunaMode();
+  const [modes] = useTribunaModes();
+  // El visualizer aparece si CUALQUIER toggle está ON (estamos siempre
+  // en /cancion[slug] cuando este componente se monta).
+  const tribunaActive = modes.reproductor || modes.general;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!tribunaMode) return;
+    if (!tribunaActive) return;
     const audio = audioRef.current;
     const canvas = canvasRef.current;
     if (!audio || !canvas) return;
@@ -136,9 +139,9 @@ export function AudioVisualizer() {
       rafRef.current = null;
       window.removeEventListener("resize", resize);
     };
-  }, [tribunaMode, isPlaying, audioRef]);
+  }, [tribunaActive, isPlaying, audioRef]);
 
-  if (!tribunaMode) return null;
+  if (!tribunaActive) return null;
 
   return (
     <div

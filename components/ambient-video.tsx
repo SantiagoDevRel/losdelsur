@@ -22,7 +22,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTribunaMode } from "@/lib/use-tribuna-mode";
+import { useTribunaModes } from "@/lib/use-tribuna-mode";
 
 // Lista de clips disponibles (sin extensión — la elegimos según browser).
 // Orden: random shuffle al iniciar la sesión, después rotación secuencial
@@ -71,15 +71,18 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function AmbientVideo() {
-  const [tribunaMode] = useTribunaMode();
+  const [modes] = useTribunaModes();
   const pathname = usePathname();
-  // Modo tribuna SOLO se activa cuando el user está escuchando una
-  // canción (en /cancion/[slug]). En home, /cds, /perfil, etc. siempre
-  // se muestra el humo extintor — ahí los clips de barra distraerían
-  // y comerían batería sin razón. El toggle global del user igual
-  // controla si modo tribuna PUEDE activarse en /cancion.
+  // Lógica de qué fondo se muestra:
+  //   - Si el user está en /cancion/[slug] → cualquier toggle (reproductor
+  //     o general) ON activa los clips de barra.
+  //   - Si está en cualquier otra ruta → solo el toggle GENERAL activa
+  //     los clips. El toggle REPRODUCTOR es scoped al reproductor.
+  //   - Si ambos OFF (o context no aplica) → humo extintor.
   const inSongPage = pathname.startsWith("/cancion/");
-  const showTribunaClips = tribunaMode && inSongPage;
+  const showTribunaClips = inSongPage
+    ? modes.reproductor || modes.general
+    : modes.general;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [playing, setPlaying] = useState(false);
