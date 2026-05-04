@@ -307,10 +307,6 @@ export function QueueModal({ isOpen, onClose }: Props) {
                       key={ids[i]}
                       id={ids[i]!}
                       track={t}
-                      index={i}
-                      // El número en la lista visual es i+2 porque el
-                      // current ocupa el slot 1.
-                      displayNumber={i + 2}
                       onJump={() => jumpToQueueIndex(i)}
                       onNavigate={() => handleNavigateQueue(i)}
                       onRemove={() => removeFromQueue(i)}
@@ -404,8 +400,6 @@ function CurrentRow({
 
 interface SortableRowProps {
   id: string;
-  index: number;
-  displayNumber: number;
   track: { cancion: Cancion; cd: CD };
   onJump: () => void;
   onNavigate: () => void;
@@ -414,8 +408,6 @@ interface SortableRowProps {
 
 function SortableQueueRow({
   id,
-  index: _index,
-  displayNumber,
   track,
   onJump,
   onNavigate,
@@ -456,26 +448,14 @@ function SortableQueueRow({
       </button>
 
       {/* Body — tap jumpea. min-w-0 + flex-1 para que el truncate
-          funcione correctamente cuando el título excede el ancho. */}
+          funcione correctamente cuando el título excede el ancho.
+          Removí el número de orden (01, 02...) — ocupaba espacio y
+          el orden visual ya queda claro por la posición en la lista. */}
       <button
         type="button"
         onClick={onJump}
-        className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-2 pr-2 text-left transition-colors hover:bg-white/[0.03]"
       >
-        <div
-          aria-hidden
-          className="w-6 shrink-0 text-center font-black"
-          style={{
-            fontFamily: "var(--font-display), Anton, sans-serif",
-            fontSize: 16,
-            color:
-              track.cancion.favorita || track.cancion.ready
-                ? "var(--color-verde-neon)"
-                : "#555",
-          }}
-        >
-          {String(displayNumber).padStart(2, "0")}
-        </div>
         <div className="min-w-0 flex-1">
           <div
             className="truncate font-bold uppercase"
