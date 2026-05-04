@@ -18,6 +18,7 @@ import { AmbientVideo } from "@/components/ambient-video";
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { GlobalMiniPlayer } from "@/components/global-mini-player";
 import { SearchModalProvider } from "@/components/search-modal-provider";
+import { QueueModalProvider } from "@/components/queue-modal-provider";
 import { UserProvider } from "@/components/user-provider";
 import { RegisterGate } from "@/components/register-gate";
 import { SyncManager } from "@/components/sync-manager";
@@ -113,14 +114,16 @@ export default function RootLayout({
               conecta ahí para background playback en iOS/Android. */}
           <AudioPlayerProvider catalog={catalog}>
             <SearchModalProvider cds={catalog}>
-              {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
-                  (que está en z-0). El <html> tiene fondo negro como fallback. */}
-              <div className="relative z-10">{children}</div>
-              <GlobalMiniPlayer />
-              <TabBar />
-              <InstallPrompt />
-              <RegisterGate />
-              <SyncManager />
+              <QueueModalProvider>
+                {/* z-10 para que las páginas pinten POR ENCIMA del video fixed
+                    (que está en z-0). El <html> tiene fondo negro como fallback. */}
+                <div className="relative z-10">{children}</div>
+                <GlobalMiniPlayer />
+                <TabBar />
+                <InstallPrompt />
+                <RegisterGate />
+                <SyncManager />
+              </QueueModalProvider>
             </SearchModalProvider>
           </AudioPlayerProvider>
         </UserProvider>

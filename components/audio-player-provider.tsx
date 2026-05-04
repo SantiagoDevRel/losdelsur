@@ -48,7 +48,19 @@ interface AudioPlayerContextValue {
   cycleShuffle: () => void;
   next: () => void;
   prev: () => void;
-  playTrack: (track: Track) => void;
+  // Si keepQueue=true (uso interno: next/prev/jumpToQueueIndex), NO se
+  // limpia el override del queue. Si es false/undefined (uso externo:
+  // tap desde search modal, song-row, etc), el override se limpia y
+  // arranca un contexto de playback nuevo.
+  playTrack: (track: Track, opts?: { keepQueue?: boolean }) => void;
+
+  // Queue editing API. Cuando el user reordena/borra/jumpea, snapshot
+  // de la queue derivada se "congela" en queueOverride y a partir de
+  // ahí pickNext respeta esa lista exacta.
+  peekQueue: (n: number) => Track[];
+  reorderQueue: (from: number, to: number) => void;
+  removeFromQueue: (index: number) => void;
+  jumpToQueueIndex: (index: number) => void;
 }
 
 // Context "fast": currentTime, que cambia ~4 veces/segundo vía
@@ -159,6 +171,13 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
   // último = current) + queue (futuros pre-mezclados).
   const [shuffleHistory, setShuffleHistory] = useState<Track[]>([]);
   const [shuffleQueue, setShuffleQueue] = useState<Track[]>([]);
+
+  // Override de la queue derivada. null = comportamiento default
+  // (auto-derivado de shuffle/repeat/secuencial). Una vez que el user
+  // reordena/borra/jumpea desde el QueueModal, snapshot de la queue
+  // derivada se congela acá y todas las operaciones siguientes (next,
+  // pickNext) la respetan exactamente.
+  const [queueOverride, setQueueOverride] = useState<Track[] | null>(null);
   // Marker para distinguir advances internos (next/prev) de jumps
   // externos (loadAndPlay, playTrack desde lista). Si un cambio de
   // currentTrack matchea este id, el effect lo trata como advance
@@ -196,7 +215,14 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
   // Reseteamos EAGER los estados de UI (currentTime, duration) para
   // que la barra no se quede "stuck" en el valor del track anterior
   // mientras el nuevo audio carga.
-  const playTrack = useCallback((track: Track) => {
+  //
+  // opts.keepQueue=true: uso interno (next/prev/jumpToQueueIndex) que
+  // NO debe limpiar el override del queue. Default false: se asume
+  // que el caller es código externo (search modal, song-row) que está
+  // arrancando un contexto fresh, así que cualquier reorder/remove
+  // que el user hizo en la queue queda invalidado.
+  const playTrack = useCallback((track: Track, opts?: { keepQueue?: boolean }) => {
+    if (!opts?.keepQueue) setQueueOverride(null);
     setCurrentTime(0);
     setDuration(0);
     const el = audioRef.current;
@@ -303,6 +329,11 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
   const pickNext = useCallback((): Track | null => {
     if (!currentTrack) return null;
 
+    // Override del user-edited queue: tiene prioridad sobre todo.
+    if (queueOverride && queueOverride.length > 0) {
+      return queueOverride[0]!;
+    }
+
     if (shuffleMode !== "off") {
       if (shuffleQueue[0]) return shuffleQueue[0];
       // Queue vacía — simulamos refill para preload.
@@ -330,7 +361,87 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     }
     if (catalog[0]?.canciones[0]) return { cancion: catalog[0].canciones[0], cd: catalog[0] };
     return null;
-  }, [currentTrack, shuffleMode, shuffleQueue, shuffleHistory, repeatMode, catalog]);
+  }, [currentTrack, shuffleMode, shuffleQueue, shuffleHistory, repeatMode, catalog, queueOverride]);
+
+  // Deriva los próximos N tracks SIN mutar estado, usando la misma
+  // lógica que pickNext (override > shuffle > secuencial). Útil para
+  // mostrar la lista en QueueModal y para snapshotear cuando el user
+  // hace su primer edit de la queue.
+  const deriveUpcoming = useCallback((n: number): Track[] => {
+    if (!currentTrack || n <= 0) return [];
+
+    if (queueOverride && queueOverride.length > 0) {
+      return queueOverride.slice(0, n);
+    }
+
+    if (shuffleMode !== "off") {
+      // shuffleQueue es el orden ya pre-mezclado de los próximos.
+      // Si no alcanza, simulamos refill SIN mutar el state real.
+      if (shuffleQueue.length >= n) return shuffleQueue.slice(0, n);
+      const pool = buildShufflePool(currentTrack, shuffleMode, catalog);
+      const refilled = refillShuffleQueue([...shuffleHistory, ...shuffleQueue], pool);
+      return [...shuffleQueue, ...refilled].slice(0, n);
+    }
+
+    // Modo secuencial: caminamos forward respetando repeatMode.
+    const result: Track[] = [];
+    let cdIdx = catalog.findIndex((c) => c.id === currentTrack.cd.id);
+    let songIdx = currentTrack.cd.canciones.findIndex(
+      (c) => c.id === currentTrack.cancion.id,
+    );
+    if (cdIdx < 0 || songIdx < 0) return [];
+
+    for (let i = 0; i < n; i++) {
+      let curCd = catalog[cdIdx];
+      if (!curCd) break;
+      songIdx++;
+      if (songIdx >= curCd.canciones.length) {
+        if (repeatMode === "cd") {
+          songIdx = 0;
+        } else {
+          cdIdx = (cdIdx + 1) % catalog.length;
+          songIdx = 0;
+          curCd = catalog[cdIdx];
+          if (!curCd) break;
+        }
+      }
+      const cancion = curCd.canciones[songIdx];
+      if (!cancion) break;
+      result.push({ cancion, cd: curCd });
+    }
+    return result;
+  }, [currentTrack, queueOverride, shuffleMode, shuffleQueue, shuffleHistory, catalog, repeatMode]);
+
+  const peekQueue = useCallback(
+    (n: number): Track[] => deriveUpcoming(n),
+    [deriveUpcoming],
+  );
+
+  const reorderQueue = useCallback(
+    (from: number, to: number) => {
+      setQueueOverride((prev) => {
+        const base = prev ?? deriveUpcoming(50);
+        if (from < 0 || from >= base.length || to < 0 || to >= base.length) return base;
+        if (from === to) return base;
+        const next = [...base];
+        const [moved] = next.splice(from, 1);
+        if (moved) next.splice(to, 0, moved);
+        return next;
+      });
+    },
+    [deriveUpcoming],
+  );
+
+  const removeFromQueue = useCallback(
+    (index: number) => {
+      setQueueOverride((prev) => {
+        const base = prev ?? deriveUpcoming(50);
+        if (index < 0 || index >= base.length) return base;
+        return base.filter((_, i) => i !== index);
+      });
+    },
+    [deriveUpcoming],
+  );
 
   // Track anterior.
   //
@@ -439,6 +550,17 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     if (!currentTrack) return;
     haptic("tap");
 
+    // Override del queue user-editado: consumir queueOverride[0] y
+    // shiftear. keepQueue=true para que el playTrack no limpie el
+    // override (lo estamos consumiendo, no descartando).
+    if (queueOverride && queueOverride.length > 0) {
+      const nextTrack = queueOverride[0]!;
+      setQueueOverride(queueOverride.slice(1));
+      advanceMarker.current = nextTrack.cancion.id;
+      playTrack(nextTrack, { keepQueue: true });
+      return;
+    }
+
     if (shuffleMode !== "off") {
       // Tomar primero de la queue. Si vacía, refill desde el pool.
       let nextTrack: Track | undefined;
@@ -462,7 +584,7 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
       return;
     }
 
-    if (upcomingTrack) playTrack(upcomingTrack);
+    if (upcomingTrack) playTrack(upcomingTrack, { keepQueue: true });
   }, [
     currentTrack,
     shuffleMode,
@@ -471,7 +593,24 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     catalog,
     upcomingTrack,
     playTrack,
+    queueOverride,
   ]);
+
+  // Tap en un row del queue modal: jumpea a esa posición. Las
+  // canciones ANTES del index quedan saltadas (se asume que el user
+  // las descarta tácitamente al elegir esta), las canciones DESPUÉS
+  // del index se mantienen en el override. Comportamiento Spotify.
+  const jumpToQueueIndex = useCallback(
+    (index: number) => {
+      const base = queueOverride ?? deriveUpcoming(50);
+      if (index < 0 || index >= base.length) return;
+      const target = base[index]!;
+      setQueueOverride(base.slice(index + 1));
+      advanceMarker.current = target.cancion.id;
+      playTrack(target, { keepQueue: true });
+    },
+    [queueOverride, deriveUpcoming, playTrack],
+  );
 
   const prev = useCallback(() => {
     if (!currentTrack) return;
@@ -490,7 +629,7 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
       return;
     }
 
-    if (prevTrack) playTrack(prevTrack);
+    if (prevTrack) playTrack(prevTrack, { keepQueue: true });
   }, [currentTrack, shuffleMode, shuffleHistory, prevTrack, playTrack]);
 
   const cycleShuffle = useCallback(() => {
@@ -603,15 +742,17 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     return () => controller.abort();
   }, [upcomingTrack, prevTrack]);
 
-  // Auto-avanzar al terminar: usa el upcomingTrack pre-calculado.
-  // El propio pickNext ya respeta repeatMode="cd" (wraps al primero)
-  // y shuffle — así que auto-advance siempre coincide con preload.
+  // Auto-avanzar al terminar: delegar a next() para que respete
+  // queueOverride correctamente (lo SHIFTEA, no lo limpia). pickNext y
+  // upcomingTrack ya están sincronizados con override, shuffle y
+  // repeat — solo nos aseguramos de pasar por la misma ruta que un
+  // tap del usuario en "next" para no duplicar lógica.
   // Repeat=one: el atributo audio.loop ya reinicia, no hacemos nada.
   const onEnded = useCallback(() => {
     setIsPlaying(false);
     if (repeatMode === "one") return;
-    if (upcomingTrack) playTrack(upcomingTrack);
-  }, [repeatMode, upcomingTrack, playTrack]);
+    next();
+  }, [repeatMode, next]);
 
   const value: AudioPlayerContextValue = {
     currentTrack,
@@ -629,6 +770,10 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     next,
     prev,
     playTrack,
+    peekQueue,
+    reorderQueue,
+    removeFromQueue,
+    jumpToQueueIndex,
   };
 
   return (

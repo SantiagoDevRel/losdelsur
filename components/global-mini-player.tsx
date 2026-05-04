@@ -6,15 +6,20 @@
 // Swipe horizontal sobre el mini-player → cambia de track. Usa el
 // mismo SwipeTracks que el reproductor grande, con snapshot + play
 // dentro del gesto del usuario para que iOS no bloquee el autoplay.
+//
+// Tap en el área del título → abre el QueueModal (estilo YouTube
+// Music): muestra la canción actual con controles + lista de
+// próximas reordenable. Para ir a la página de letra completa se
+// usa el chevron dentro del modal.
 
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Pause, Play } from "lucide-react";
 import { CDCover } from "@/components/cd-cover";
 import { SwipeTracks } from "@/components/swipe-tracks";
 import { useAudioPlayer, useAudioTime } from "./audio-player-provider";
+import { useQueueModal } from "./queue-modal-provider";
 import type { CD, Cancion } from "@/lib/types";
 
 export function GlobalMiniPlayer() {
@@ -28,6 +33,7 @@ export function GlobalMiniPlayer() {
     next,
     prev,
   } = useAudioPlayer();
+  const { open: openQueue } = useQueueModal();
   const pathname = usePathname();
 
   if (!currentTrack) return null;
@@ -46,13 +52,15 @@ export function GlobalMiniPlayer() {
       <MiniProgressBar duration={duration} />
 
       <div className="flex items-center gap-3 px-3 py-2.5">
-        {/* Link al song-view completo — se activa solo si el user TOCA
-            (no swipea). El SwipeTracks, al estar dentro del Link, no
-            dispara el Link durante un swipe horizontal. */}
-        <Link
-          href={`/cancion/${cancion.slug}`}
-          aria-label="Abrir canción"
-          className="flex min-w-0 flex-1 items-center"
+        {/* Tap en el área del título → abre QueueModal (now playing +
+            próximas). El SwipeTracks adentro distingue tap de swipe:
+            durante un swipe horizontal NO se dispara el onClick del
+            button gracias a data-noswipe / threshold del swipe. */}
+        <button
+          type="button"
+          onClick={openQueue}
+          aria-label="Abrir cola de reproducción"
+          className="flex min-w-0 flex-1 items-center text-left"
         >
           <SwipeTracks
             onNext={next}
@@ -75,7 +83,7 @@ export function GlobalMiniPlayer() {
                 : null
             }
           />
-        </Link>
+        </button>
         <button
           type="button"
           onClick={(e) => {
