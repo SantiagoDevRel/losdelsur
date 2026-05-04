@@ -76,23 +76,38 @@ export default function HomePage() {
         <HomeSearchButton totalCanciones={totalCanciones} />
       </section>
 
-      {/* Carrusel de CDs */}
+      {/* Carrusel de CDs. Wrapper relative + fade-mask al borde
+          derecho hacen visible que hay más allá del primer viewport
+          (en mobile el último CD visible se ve cortado por el
+          gradiente, sino parecía que solo había 2-3 CDs). */}
       <SectionHeader title="CDs" actionHref="/cds" actionLabel="TODOS →" preserveCase />
-      <div className="mb-6 flex gap-5 overflow-x-auto px-5 pb-1">
-        {cds.map((cd, i) => (
-          <Link key={cd.id} href={`/cds/${cd.id}`} className="shrink-0 text-center">
-            <CDCover cd={cd} size="md" priority={i < 3} />
-            <div
-              className="mt-3 uppercase text-white"
-              style={{ fontFamily: "var(--font-display), Anton, sans-serif", fontSize: 14 }}
-            >
-              {cd.cd_titulo}
-            </div>
-            <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-white/50">
-              {cd.año} · {cd.canciones.length} cánticos
-            </div>
-          </Link>
-        ))}
+      <div className="relative mb-6">
+        <div className="flex gap-5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {cds.map((cd, i) => (
+            <Link key={cd.id} href={`/cds/${cd.id}`} className="shrink-0 text-center">
+              <CDCover cd={cd} size="md" priority={i < 3} />
+              <div
+                className="mt-3 uppercase text-white"
+                style={{ fontFamily: "var(--font-display), Anton, sans-serif", fontSize: 14 }}
+              >
+                {cd.cd_titulo}
+              </div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-white/50">
+                {cd.año} · {cd.canciones.length} cánticos
+              </div>
+            </Link>
+          ))}
+        </div>
+        {/* Fade-mask derecho (visible solo en mobile, donde la lista
+            se corta). Sugiere "hay más, deslizá". Se desactiva con
+            pointer-events para no bloquear el tap del último CD. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute right-0 top-0 h-full w-12 sm:hidden"
+          style={{
+            background: "linear-gradient(to right, transparent, rgba(0,0,0,0.95))",
+          }}
+        />
       </div>
 
       {/* Clásicos (favoritas) */}

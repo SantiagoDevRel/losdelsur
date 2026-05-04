@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -54,7 +54,8 @@ import {
   SkipForward,
   X,
 } from "lucide-react";
-import { useAudioPlayer, useAudioTime } from "./audio-player-provider";
+import { useAudioPlayer } from "./audio-player-provider";
+import { PlayerScrubBar } from "./player-scrub-bar";
 import { downloadAudio, isAudioCached } from "@/lib/download";
 import type { CD, Cancion } from "@/lib/types";
 
@@ -213,7 +214,7 @@ export function QueueModal({ isOpen, onClose }: Props) {
 
         {/* Control strip sticky */}
         <div className="border-b border-white/10 bg-black px-5 py-3">
-          <ScrubBar duration={duration} onSeek={seek} />
+          <PlayerScrubBar duration={duration} onSeek={seek} />
           <div className="mt-2 flex items-center justify-between">
             <button
               type="button"
@@ -586,106 +587,3 @@ function DownloadButton({ audioUrl, titulo }: { audioUrl: string; titulo: string
   );
 }
 
-// ---- Scrub bar (aislada para que el tick a 4Hz no re-renderice todo) ----
-
-// Scrub bar fluido con logo de Los Del Sur como thumb. Misma
-// implementación que el song-view top-bar (smooth 500ms linear,
-// logo como thumb, drag con pointer events). Aislado para que el
-// tick a 4Hz sólo re-renderice acá.
-function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
-  const currentTime = useAudioTime();
-  const [scrubValue, setScrubValue] = useState<number | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
-
-  // Mientras el user arrastra, displayedTime es el valor del drag
-  // (no el currentTime real). Al soltar, hacemos el seek de verdad.
-  const displayedTime = scrubValue ?? currentTime;
-  const pct = duration > 0 ? (displayedTime / duration) * 100 : 0;
-
-  const ratioFromClient = useCallback((clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  }, []);
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (duration <= 0) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
-      setScrubValue(ratioFromClient(e.clientX) * duration);
-    },
-    [duration, ratioFromClient],
-  );
-
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (scrubValue === null || duration <= 0) return;
-      setScrubValue(ratioFromClient(e.clientX) * duration);
-    },
-    [scrubValue, duration, ratioFromClient],
-  );
-
-  const onPointerEnd = useCallback(() => {
-    if (scrubValue === null) return;
-    onSeek(scrubValue);
-    setScrubValue(null);
-  }, [scrubValue, onSeek]);
-
-  const fmt = (s: number) => {
-    if (!isFinite(s) || s < 0) return "0:00";
-    const m = Math.floor(s / 60);
-    const ss = Math.floor(s % 60);
-    return `${m}:${ss.toString().padStart(2, "0")}`;
-  };
-
-  return (
-    <div>
-      <div className="flex items-center gap-2">
-        <span className="w-10 shrink-0 text-right text-[10px] font-semibold tabular-nums text-white/60">
-          {fmt(displayedTime)}
-        </span>
-        <div
-          ref={trackRef}
-          role="slider"
-          aria-label="Progreso de la canción"
-          aria-valuemin={0}
-          aria-valuemax={duration || 0}
-          aria-valuenow={displayedTime}
-          tabIndex={0}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerEnd}
-          onPointerCancel={onPointerEnd}
-          className="relative h-6 flex-1 cursor-pointer select-none touch-none"
-        >
-          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/20">
-            <div
-              className="h-full rounded-full bg-white"
-              style={{
-                width: `${pct}%`,
-                // Mientras suena, suavizamos los ticks de timeupdate
-                // (~4Hz) con linear 500ms. Cuando el user scrubbea,
-                // sin transition (instant con el dedo).
-                transition: scrubValue !== null ? "none" : "width 500ms linear",
-              }}
-            />
-          </div>
-          {/* Thumb: logo de Los Del Sur sobre la barra. */}
-          <div
-            className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white bg-cover bg-center"
-            style={{
-              left: `${pct}%`,
-              backgroundImage: "url(/logo.png)",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.7)",
-              transition: scrubValue !== null ? "none" : "left 500ms linear",
-            }}
-          />
-        </div>
-        <span className="w-10 shrink-0 text-left text-[10px] font-semibold tabular-nums text-white/60">
-          {fmt(duration)}
-        </span>
-      </div>
-    </div>
-  );
-}

@@ -18,13 +18,7 @@ import { haptic } from "@/lib/haptic";
 import { emit } from "@/lib/user-sync";
 import { useAudioPlayer, useAudioTime } from "@/components/audio-player-provider";
 import { useQueueModal } from "@/components/queue-modal-provider";
-
-function formatTime(s: number): string {
-  if (!isFinite(s) || s < 0) return "0:00";
-  const mm = Math.floor(s / 60);
-  const ss = Math.floor(s - mm * 60);
-  return `${mm}:${String(ss).padStart(2, "0")}`;
-}
+import { PlayerScrubBar } from "@/components/player-scrub-bar";
 
 interface SongViewProps {
   cancion: Cancion;
@@ -86,10 +80,6 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
   const [progress, setProgress] = useState<number | null>(null);
   const [fontSize, setFontSize] = useState(18);
   const [plays, setPlays] = useState(0);
-  // Mientras el usuario arrastra el scrub, mostramos el valor local
-  // (pointer position) en vez del currentTime del audio — así la
-  // bolita sigue el dedo sin lag de timeupdate.
-  const [scrubValue, setScrubValue] = useState<number | null>(null);
 
   // Playback state viene del provider global (el audio sobrevive a
   // cambios de ruta + tiene Media Session para background).
@@ -211,51 +201,9 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
     }
   }, [audioUrl, downloading, isDownloaded]);
 
-  // Scrubber fluido: mientras el usuario arrastra, solo actualizamos
-  // el valor local (rápido, 60fps). Al soltar, hacemos el seek real
-  // al audio. Sin delay de timeupdate, sin jumps.
-  const scrubFromEvent = useCallback(
-    (clientX: number, rect: DOMRect): number => {
-      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      return pct * (duration || 0);
-    },
-    [duration],
-  );
-
-  const onScrubStart = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const t = scrubFromEvent(e.clientX, e.currentTarget.getBoundingClientRect());
-      setScrubValue(t);
-    },
-    [scrubFromEvent],
-  );
-
-  const onScrubMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-      const t = scrubFromEvent(e.clientX, e.currentTarget.getBoundingClientRect());
-      setScrubValue(t);
-    },
-    [scrubFromEvent],
-  );
-
-  const onScrubEnd = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-      if (scrubValue !== null) {
-        seek(scrubValue);
-        setScrubValue(null);
-      }
-    },
-    [scrubValue, seek],
-  );
-
-  // Valor que pintamos en la barra/thumb: el del drag si está scrubbeando,
-  // si no el currentTime del audio.
-  const displayedTime = scrubValue !== null ? scrubValue : currentTime;
+  // Scrub bar refactoreada en components/player-scrub-bar.tsx —
+  // compartida con el QueueModal. Esta vista sólo le pasa duration
+  // y seek; el componente maneja su propio drag/seek state.
 
   const sharable =
     typeof navigator !== "undefined" && typeof navigator.share === "function";
@@ -357,53 +305,9 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
           </button>
         </div>
 
-        {/* Fila inferior-1: scrub bar + tiempos */}
-        <div className="flex items-center gap-2 px-3 pb-1">
-          <span className="w-10 shrink-0 text-right text-[10px] font-semibold tabular-nums text-white/60">
-            {formatTime(displayedTime)}
-          </span>
-          <div
-            role="slider"
-            aria-label="Progreso de la canción"
-            aria-valuemin={0}
-            aria-valuemax={duration || 0}
-            aria-valuenow={displayedTime}
-            onPointerDown={onScrubStart}
-            onPointerMove={onScrubMove}
-            onPointerUp={onScrubEnd}
-            onPointerCancel={onScrubEnd}
-            data-noswipe="true"
-            className="relative h-6 flex-1 cursor-pointer select-none touch-none"
-          >
-            <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/20">
-              <div
-                className="h-full rounded-full bg-white"
-                style={{
-                  width: duration > 0 ? `${(displayedTime / duration) * 100}%` : "0%",
-                  // Transition más largo (~500ms) para suavizar los
-                  // saltos entre timeupdate events (que llegan cada
-                  // ~250ms). El browser interpola entre updates y el
-                  // movimiento se ve continuo. Mientras scrubbea el
-                  // user, sin transition (instant con el dedo).
-                  transition: scrubValue !== null ? "none" : "width 500ms linear",
-                }}
-              />
-            </div>
-            {/* Thumb: solo el escudo de Los Del Sur, sin borde verde.
-                Pequeña sombra para dar profundidad sobre la barra. */}
-            <div
-              className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white bg-cover bg-center"
-              style={{
-                left: duration > 0 ? `${(displayedTime / duration) * 100}%` : "0%",
-                backgroundImage: "url(/logo.png)",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.7)",
-                transition: scrubValue !== null ? "none" : "left 500ms linear",
-              }}
-            />
-          </div>
-          <span className="w-10 shrink-0 text-left text-[10px] font-semibold tabular-nums text-white/60">
-            {formatTime(duration)}
-          </span>
+        {/* Fila inferior-1: scrub bar compartido con QueueModal. */}
+        <div className="px-3 pb-1">
+          <PlayerScrubBar duration={duration} onSeek={seek} noSwipe />
         </div>
 
         {/* Fila inferior-2 — orden: [‹‹ prev] [shuffle] [repeat] [next ››]

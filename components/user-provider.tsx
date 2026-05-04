@@ -48,11 +48,67 @@ interface MeResponse {
   profile: PerfilSureno | null;
 }
 
+// Cache de la respuesta /api/me/profile en sessionStorage (vive
+// solo durante la sesión del browser tab). 30s es suficientemente
+// fresco para que un cambio de profile en una tab se refleje en
+// otra al refrescar, y suficientemente largo para que navegaciones
+// entre páginas (home -> /cancion -> /perfil) no peguen al endpoint
+// cada una. Reduce ~50-150ms del TTFB visible en navegaciones
+// internas con red lenta.
+const PROFILE_CACHE_KEY = "lds:me:profile";
+const PROFILE_CACHE_TTL_MS = 30_000;
+
+interface CachedMe {
+  data: MeResponse;
+  timestamp: number;
+}
+
+function readMeCache(): MeResponse | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedMe;
+    if (Date.now() - parsed.timestamp > PROFILE_CACHE_TTL_MS) {
+      sessionStorage.removeItem(PROFILE_CACHE_KEY);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeMeCache(data: MeResponse): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      PROFILE_CACHE_KEY,
+      JSON.stringify({ data, timestamp: Date.now() }),
+    );
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function clearMeCache(): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// fetchMe siempre va a red. Para usar el cache de TTL corto se llama
+// readMeCache() primero en el sitio que importe el flow.
 async function fetchMe(signal?: AbortSignal): Promise<MeResponse | null> {
   try {
     const res = await fetch("/api/me/profile", { signal, cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as MeResponse;
+    const data = (await res.json()) as MeResponse;
+    writeMeCache(data);
+    return data;
   } catch {
     return null;
   }
@@ -68,6 +124,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   const refreshProfile = useCallback(async () => {
+    clearMeCache();
     const me = await fetchMe();
     if (me?.profile) setPerfilSureno(me.profile);
     else setPerfilSureno(null);
@@ -75,6 +132,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const setProfileLocal = useCallback((p: PerfilSureno | null) => {
     setPerfilSureno(p);
+    // Tambien actualiza el cache para que la próxima nav use el
+    // valor nuevo en vez del viejo del fetch anterior.
+    if (p) {
+      const cached = readMeCache();
+      if (cached) writeMeCache({ ...cached, profile: p });
+    }
   }, []);
 
   // Effect inicial: 1) fetch /api/me/profile (server-side, no requiere
@@ -88,6 +151,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const failsafe = setTimeout(() => {
       if (!cancelled) setLoading(false);
     }, 6000);
+
+    // Hidratación instantánea desde el cache de sessionStorage si
+    // está fresco (<30s). Evita el flash de "loading" en navegaciones
+    // entre páginas. La red se sigue corriendo en paralelo abajo
+    // para refrescar si algo cambió.
+    const cached = readMeCache();
+    if (cached) {
+      if (cached.user) {
+        setUser({
+          id: cached.user.id,
+          phone: cached.user.phone ?? undefined,
+          email: cached.user.email ?? undefined,
+        } as unknown as User);
+        setPerfilSureno(cached.profile);
+      }
+      setLoading(false);
+    }
 
     void (async () => {
       const me = await fetchMe(controller.signal);
@@ -128,10 +208,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
       if (cancelled) return;
       if (event === "SIGNED_OUT") {
+        clearMeCache();
         setUser(null);
         setPerfilSureno(null);
         return;
       }
+      // Cualquier auth change invalida el cache para forzar fetch fresco.
+      clearMeCache();
       // SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED → re-fetch desde server.
       const me = await fetchMe();
       if (cancelled) return;
