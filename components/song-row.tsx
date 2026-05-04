@@ -11,7 +11,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MoreVertical } from "lucide-react";
 import type { Cancion } from "@/lib/types";
 import { isAudioCached } from "@/lib/download";
 
@@ -90,7 +89,6 @@ export function SongRow({ cancion, index, showPlays = true }: SongRowProps) {
           )}
         </div>
       </div>
-      <MoreVertical size={18} className="text-white/40" aria-hidden />
     </Link>
   );
 }

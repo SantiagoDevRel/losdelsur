@@ -7,7 +7,7 @@
 // Nombre del cache: coincide con el que Serwist usa para runtime audio
 // para evitar duplicar datos. Ver `app/sw.ts`.
 
-export const AUDIO_CACHE_NAME = "lds-audio-v1";
+export const AUDIO_CACHE_NAME = "lds-audio-v6";
 
 // Chequea si un archivo ya está guardado en cache (usado para pintar ✅).
 export async function isAudioCached(url: string): Promise<boolean> {

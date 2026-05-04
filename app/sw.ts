@@ -108,13 +108,20 @@ const serwist = new Serwist({
     //  - /audio/* (legacy local, antes de R2)
     //  - audio destination (HTMLAudioElement fetch, cualquier origen)
     //  - r2.dev (donde sirve Cloudflare ahora)
+    //
+    // Cache name 'lds-audio-v6' (bumped desde v1): cuando se sube el
+    // audio_version del cd.json (ej: 5 -> 6), las URLs cambian de
+    // .v5.m4a a .v6.m4a y los archivos viejos quedan huérfanos en el
+    // cache. Bumpeando el cacheName + activando cleanupOutdatedCaches
+    // (abajo), Serwist purga los caches viejos en activate del SW
+    // y libera ese espacio.
     {
       matcher: ({ request, url }) =>
         request.destination === "audio" ||
         url.pathname.startsWith("/audio/") ||
         url.hostname.endsWith(".r2.dev"),
       handler: new CacheFirst({
-        cacheName: "lds-audio-v1",
+        cacheName: "lds-audio-v6",
       }),
     },
     // Covers de CDs: cache-first largo (las .jpg no cambian mucho).
@@ -151,6 +158,36 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// --- Cleanup de caches huérfanos en activate ---
+// Cuando bumpeamos un cacheName (ej. lds-audio-v1 -> lds-audio-v6),
+// el cache viejo queda colgado ocupando espacio hasta que el browser
+// lo evict por quota. Acá lo borramos explícito al activar el SW
+// nuevo. La lista de "caches válidos" debe matchear con los cacheName
+// usados en runtimeCaching arriba + los que crea Serwist internamente.
+const VALID_CACHES = new Set([
+  PAGES_CACHE,
+  "lds-audio-v6",
+  "lds-covers-v1",
+  "lds-img-opt-v1",
+  "lds-design-assets-v1",
+]);
+
+self.addEventListener("activate", (event: ExtendableEvent) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(
+        names
+          // Solo borramos caches que sigan nuestro naming "lds-*-v*".
+          // Los que crea Serwist (precache, runtime) tienen otros
+          // prefijos — no los tocamos.
+          .filter((name) => /^lds-.+-v\d+$/.test(name) && !VALID_CACHES.has(name))
+          .map((name) => caches.delete(name)),
+      );
+    })(),
+  );
+});
 
 // --- Web Push listener ---
 // Cuando el server dispara webpush.sendNotification(), este evento llega.

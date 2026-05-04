@@ -408,8 +408,12 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
 
         {/* Fila inferior-2 — orden: [‹‹ prev] [shuffle] [repeat] [next ››]
             — flechas en los extremos (navegación de canción) + modos
-            de reproducción en el centro. Más intuitivo. */}
-        <div className="flex items-center justify-between px-4 pb-2.5">
+            de reproducción en el centro. Más intuitivo.
+            En mobile (<sm) está oculta para ahorrar ~50px del top-bar:
+            prev/next ya se acceden vía swipe horizontal sobre el
+            cover-mini, y shuffle/repeat viven en el QueueModal
+            (tap en el cover-mini lo abre). */}
+        <div className="hidden items-center justify-between px-4 pb-2.5 sm:flex">
           {/* Prev */}
           <button
             type="button"
@@ -488,10 +492,11 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
         </div>
       </div>
 
-      {/* Padding grande arriba: top-bar ahora tiene 3 filas (info,
-          scrub, controles) + ~30px de aire entre la top-bar y el
-          título de la canción para que no se vean pegados. */}
-      <div className="pt-[210px] pb-[110px]">
+      {/* Padding grande arriba: top-bar tiene 3 filas (info, scrub,
+          controles) + ~30px de aire. En mobile (<sm) la fila de
+          controles está oculta así que el top-bar es ~50px menor —
+          reducimos pt acordemente. */}
+      <div className="pt-[160px] pb-[110px] sm:pt-[210px]">
 
         {/* Título */}
         <div className="relative px-6 pb-4 pt-5">

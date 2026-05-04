@@ -52,7 +52,7 @@ export function GlobalMiniPlayer() {
       {/* Barra fina de progreso — aislada en su propio componente que
           consume el context "fast" (currentTime) para que solo esta
           barra se re-renderice ~4 veces/seg, y no el mini-player entero. */}
-      <MiniProgressBar duration={duration} />
+      <MiniProgressBar duration={duration} isPlaying={isPlaying} />
 
       <div className="flex items-center gap-3 px-3 py-2.5">
         {/* Tap en el área del título → abre QueueModal (now playing +
@@ -112,14 +112,21 @@ export function GlobalMiniPlayer() {
 // acá para que los re-renders por timeupdate (~4/seg) no toquen al
 // mini-player completo (cover, título, controles) que son estáticos
 // mientras dura la canción.
-function MiniProgressBar({ duration }: { duration: number }) {
+function MiniProgressBar({ duration, isPlaying }: { duration: number; isPlaying: boolean }) {
   const currentTime = useAudioTime();
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
   return (
     <div className="relative h-0.5 w-full bg-white/10">
       <div
-        className="h-full bg-white transition-[width] duration-500 ease-linear"
-        style={{ width: `${pct}%` }}
+        className="h-full bg-white"
+        style={{
+          width: `${pct}%`,
+          // Mientras suena suavizamos los ticks de timeupdate (~4Hz)
+          // con un linear 500ms para que la barra no salte. Pero
+          // cuando está pausado cortamos la transición — sino sigue
+          // avanzando 500ms tras el clic de pause, quedó raro.
+          transition: isPlaying ? "width 500ms linear" : "none",
+        }}
       />
     </div>
   );

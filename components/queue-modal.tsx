@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -39,7 +39,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  Check,
   ChevronRight,
+  Download,
+  Loader2,
   Menu,
   Pause,
   Play,
@@ -48,10 +51,10 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  Trash2,
   X,
 } from "lucide-react";
 import { useAudioPlayer, useAudioTime } from "./audio-player-provider";
+import { downloadAudio, isAudioCached } from "@/lib/download";
 import type { CD, Cancion } from "@/lib/types";
 
 interface Props {
@@ -320,10 +323,8 @@ function CurrentRow({
   onNavigate: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onNavigate}
-      className="flex w-full items-stretch border-b-2 text-left transition-colors"
+    <div
+      className="flex w-full items-stretch border-b-2"
       style={{
         background: "rgba(43,255,127,0.08)",
         borderBottomColor: "rgba(43,255,127,0.20)",
@@ -332,7 +333,14 @@ function CurrentRow({
       {/* Spacer del ancho del drag handle (44px) para alinear con
           las filas de abajo, aunque acá no haya handle. */}
       <div aria-hidden className="w-11 shrink-0" />
-      <div className="flex flex-1 items-center gap-3 py-3 pr-2">
+
+      {/* Body: tap navega a /cancion (ver letra). */}
+      <button
+        type="button"
+        onClick={onNavigate}
+        aria-label={`Ver letra de ${cancion.titulo}`}
+        className="flex flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
+      >
         <div
           aria-hidden
           className="w-6 text-center font-black"
@@ -364,12 +372,18 @@ function CurrentRow({
             CD {cd.cd_numero} · {cd.cd_titulo}
             {cancion.duracion ? ` · ${cancion.duracion}` : ""}
           </div>
+          <div
+            className="mt-1 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-[0.1em]"
+            style={{ color: "var(--color-verde-neon)" }}
+          >
+            VER LETRA <ChevronRight size={12} />
+          </div>
         </div>
-      </div>
-      <div className="grid w-11 place-items-center" style={{ color: "var(--color-verde-neon)" }}>
-        <ChevronRight size={18} />
-      </div>
-    </button>
+      </button>
+
+      {/* Download del current. */}
+      <DownloadButton audioUrl={cancion.audio_url} titulo={cancion.titulo} />
+    </div>
   );
 }
 
@@ -473,62 +487,192 @@ function SortableQueueRow({
         </div>
       </button>
 
-      {/* Open in song page */}
+      {/* Ver letra (chevron). Tap navega a /cancion/[slug]. */}
       <button
         type="button"
         onClick={onNavigate}
-        aria-label={`Ir a la página de ${track.cancion.titulo}`}
-        className="grid w-11 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
+        aria-label={`Ver letra de ${track.cancion.titulo}`}
+        className="grid w-10 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
       >
         <ChevronRight size={18} />
       </button>
 
-      {/* Remove */}
+      {/* Descargar para escuchar offline. */}
+      <DownloadButton audioUrl={track.cancion.audio_url} titulo={track.cancion.titulo} />
+
+      {/* Quitar de la cola. */}
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Quitar de la cola"
-        className="grid w-11 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
+        aria-label={`Quitar ${track.cancion.titulo} de la cola`}
+        className="grid w-10 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
       >
-        <Trash2 size={16} />
+        <X size={18} />
       </button>
     </li>
   );
 }
 
+// Botón de descarga: muestra spinner durante el download, ✓ si ya
+// está cacheado, ⬇ default. Reusa lib/download que escribe en el
+// mismo cache que lee el SW (lds-audio-v6).
+function DownloadButton({ audioUrl, titulo }: { audioUrl: string; titulo: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+
+  useEffect(() => {
+    let cancelled = false;
+    isAudioCached(audioUrl).then((cached) => {
+      if (!cancelled && cached) setState("done");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [audioUrl]);
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (state !== "idle") return;
+    setState("loading");
+    try {
+      await downloadAudio(audioUrl);
+      setState("done");
+    } catch {
+      setState("idle");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      aria-label={
+        state === "done"
+          ? `${titulo} disponible offline`
+          : state === "loading"
+            ? `Descargando ${titulo}`
+            : `Descargar ${titulo} para offline`
+      }
+      disabled={state === "loading"}
+      className="grid w-10 place-items-center transition-colors hover:bg-white/[0.03]"
+      style={{
+        color:
+          state === "done"
+            ? "var(--color-verde-neon)"
+            : state === "loading"
+              ? "rgb(255 255 255 / 0.6)"
+              : "rgb(255 255 255 / 0.4)",
+      }}
+    >
+      {state === "done" ? (
+        <Check size={16} />
+      ) : state === "loading" ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : (
+        <Download size={16} />
+      )}
+    </button>
+  );
+}
+
 // ---- Scrub bar (aislada para que el tick a 4Hz no re-renderice todo) ----
 
+// Scrub bar fluido con logo de Los Del Sur como thumb. Misma
+// implementación que el song-view top-bar (smooth 500ms linear,
+// logo como thumb, drag con pointer events). Aislado para que el
+// tick a 4Hz sólo re-renderice acá.
 function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
   const currentTime = useAudioTime();
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const [scrubValue, setScrubValue] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  // Mientras el user arrastra, displayedTime es el valor del drag
+  // (no el currentTime real). Al soltar, hacemos el seek de verdad.
+  const displayedTime = scrubValue ?? currentTime;
+  const pct = duration > 0 ? (displayedTime / duration) * 100 : 0;
+
+  const ratioFromClient = useCallback((clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (duration <= 0) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setScrubValue(ratioFromClient(e.clientX) * duration);
+    },
+    [duration, ratioFromClient],
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (scrubValue === null || duration <= 0) return;
+      setScrubValue(ratioFromClient(e.clientX) * duration);
+    },
+    [scrubValue, duration, ratioFromClient],
+  );
+
+  const onPointerEnd = useCallback(() => {
+    if (scrubValue === null) return;
+    onSeek(scrubValue);
+    setScrubValue(null);
+  }, [scrubValue, onSeek]);
+
   const fmt = (s: number) => {
     if (!isFinite(s) || s < 0) return "0:00";
     const m = Math.floor(s / 60);
     const ss = Math.floor(s % 60);
     return `${m}:${ss.toString().padStart(2, "0")}`;
   };
+
   return (
     <div>
-      <div
-        role="slider"
-        aria-label="Progreso"
-        aria-valuemin={0}
-        aria-valuemax={duration || 0}
-        aria-valuenow={currentTime}
-        tabIndex={0}
-        className="relative h-1.5 cursor-pointer rounded-full bg-white/10"
-        onClick={(e) => {
-          if (duration <= 0) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const ratio = (e.clientX - rect.left) / rect.width;
-          onSeek(Math.max(0, Math.min(1, ratio)) * duration);
-        }}
-      >
-        <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="mt-1.5 flex justify-between text-[10px] font-medium uppercase tracking-[0.08em] text-white/40">
-        <span>{fmt(currentTime)}</span>
-        <span>{fmt(duration)}</span>
+      <div className="flex items-center gap-2">
+        <span className="w-10 shrink-0 text-right text-[10px] font-semibold tabular-nums text-white/60">
+          {fmt(displayedTime)}
+        </span>
+        <div
+          ref={trackRef}
+          role="slider"
+          aria-label="Progreso de la canción"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={displayedTime}
+          tabIndex={0}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerCancel={onPointerEnd}
+          className="relative h-6 flex-1 cursor-pointer select-none touch-none"
+        >
+          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/20">
+            <div
+              className="h-full rounded-full bg-white"
+              style={{
+                width: `${pct}%`,
+                // Mientras suena, suavizamos los ticks de timeupdate
+                // (~4Hz) con linear 500ms. Cuando el user scrubbea,
+                // sin transition (instant con el dedo).
+                transition: scrubValue !== null ? "none" : "width 500ms linear",
+              }}
+            />
+          </div>
+          {/* Thumb: logo de Los Del Sur sobre la barra. */}
+          <div
+            className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white bg-cover bg-center"
+            style={{
+              left: `${pct}%`,
+              backgroundImage: "url(/logo.png)",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.7)",
+              transition: scrubValue !== null ? "none" : "left 500ms linear",
+            }}
+          />
+        </div>
+        <span className="w-10 shrink-0 text-left text-[10px] font-semibold tabular-nums text-white/60">
+          {fmt(duration)}
+        </span>
       </div>
     </div>
   );

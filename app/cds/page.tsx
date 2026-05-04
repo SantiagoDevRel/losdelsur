@@ -39,7 +39,7 @@ export default function CDsPage() {
           - mobile (default) 2 columnas
           - sm (≥640px) 3 columnas
           - lg (≥1024px) 6 columnas en una sola fila (simétrico) */}
-      <div className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:gap-8 sm:px-8 lg:grid-cols-6 lg:px-12">
+      <div className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:gap-8 sm:px-8 lg:grid-cols-4 lg:gap-10 lg:px-16 xl:grid-cols-6 xl:px-24">
         {cds.map((cd) => (
           <Link
             key={cd.id}

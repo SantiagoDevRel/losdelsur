@@ -109,11 +109,12 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Banner tip offline */}
-      <section className="relative mx-5 mb-6 overflow-hidden rounded-xl border-2 border-[var(--color-verde-neon)] bg-[#0a0a0a] p-5">
+      {/* Banner tip offline. Simplificado: sin border-2 ni doble peso
+          visual. Sólo barra lateral verde + contenido + CTA. */}
+      <section className="relative mx-5 mb-6 overflow-hidden rounded-xl bg-[#0a0a0a] py-4 pl-5 pr-4">
         <div
           aria-hidden
-          className="absolute left-0 top-0 h-full w-1.5"
+          className="absolute left-0 top-0 h-full w-1"
           style={{ background: "var(--color-verde-neon)" }}
         />
         <div className="eyebrow">TIP DEL PARCHE</div>
@@ -127,10 +128,10 @@ export default function HomePage() {
         </div>
         <Link
           href="/library"
-          className="mt-3 inline-flex items-center gap-2 border-2 border-white px-3.5 py-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-white"
+          className="mt-3 inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--color-verde-neon)]"
         >
           <Download size={14} />
-          VER BIBLIOTECA OFFLINE
+          VER BIBLIOTECA OFFLINE →
         </Link>
       </section>
 

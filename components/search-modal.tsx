@@ -168,9 +168,21 @@ export function SearchModal({ cds, isOpen, onClose }: Props) {
               Buscá por título o letra. La canción suena al instante.
             </p>
           ) : results.length === 0 ? (
-            <p className="px-5 pt-6 text-[13px] font-medium uppercase tracking-[0.05em] text-white/50">
-              Nada encontrado para &ldquo;{query}&rdquo;.
-            </p>
+            <div className="px-5 pt-6">
+              <p className="text-[13px] font-medium uppercase tracking-[0.05em] text-white/50">
+                Nada encontrado para &ldquo;{query}&rdquo;.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/library");
+                }}
+                className="mt-3 inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-[var(--color-verde-neon)]"
+              >
+                MIRÁ TUS FAVORITOS →
+              </button>
+            </div>
           ) : (
             <ul>
               {results.map((c, i) => {
