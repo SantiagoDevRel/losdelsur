@@ -126,13 +126,20 @@ function shuffleArray<T>(arr: T[]): T[] {
 function buildShufflePool(
   currentTrack: Track | null,
   mode: ShuffleMode,
-  _catalog: CD[],
+  catalog: CD[],
 ): Track[] {
-  // Shuffle = "on" → pool del CD actual. Si no hay CD context, vacío.
-  // Catalog se pasa por compat con la firma antigua pero ya no se usa
-  // (era para el modo "all" que removimos).
-  if (mode === "off" || !currentTrack) return [];
-  return currentTrack.cd.canciones.map((c) => ({ cancion: c, cd: currentTrack.cd }));
+  // Shuffle = "on" → pool de TODAS las canciones del catálogo entero
+  // (los 6 CDs juntos). Antes era solo el CD actual, pero el user
+  // pidió mezclar todo el cancionero. Más útil para playback de
+  // fondo en el día del partido — variedad real entre los volúmenes.
+  if (mode === "off") return [];
+  const all: Track[] = [];
+  for (const cd of catalog) {
+    for (const c of cd.canciones) {
+      all.push({ cancion: c, cd });
+    }
+  }
+  return all;
 }
 
 function refillShuffleQueue(history: Track[], pool: Track[]): Track[] {

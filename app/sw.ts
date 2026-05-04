@@ -157,6 +157,25 @@ const serwist = new Serwist({
   ],
 });
 
+// catchHandler: cuando una request falla y NINGÚN handler de runtime
+// pudo responder (ej. red caída + URL no estaba en cache: típicamente
+// /cancion/[slug] cuando el user descargó el audio pero no visitó la
+// página antes), devolvemos algo razonable en vez del error
+// "fetchevent.respondwith received an error: no-response" que muestra
+// Safari iOS sin esto.
+//
+// Para navigations: servimos /offline (precacheado por Serwist) — al
+// menos el user ve una página estática informativa en vez del error.
+// Para cualquier otra request que falle: Response.error() (deja al
+// browser manejar el error como si no hubiera SW).
+serwist.setCatchHandler(async ({ request }) => {
+  if (request.destination === "document") {
+    const cached = await caches.match("/offline");
+    if (cached) return cached;
+  }
+  return Response.error();
+});
+
 serwist.addEventListeners();
 
 // --- Cleanup de caches huérfanos en activate ---

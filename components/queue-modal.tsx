@@ -40,6 +40,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  AudioLines,
   Check,
   ChevronRight,
   Download,
@@ -100,19 +101,16 @@ export function QueueModal({ isOpen, onClose }: Props) {
     });
   }, [upcoming]);
 
-  // Sensors separados por input device para evitar el conflict
-  // drag-vs-scroll que pasa con PointerSensor unificado en mobile:
-  //   - Mouse (desktop): distance 5px — un tap puro no activa drag,
-  //     un click+drag inmediato sí.
-  //   - Touch (mobile): delay 200ms con tolerancia 5px — el user
-  //     necesita TOCAR Y SOSTENER 200ms para empezar a draggear. Si
-  //     mueve el dedo antes (intent de scroll), no dispara drag y la
-  //     lista scrollea normal. Patrón estándar para listas
-  //     reorderables en mobile (Spotify, YouTube Music funcionan así).
+  // Sensors separados por input device:
+  //   - Mouse (desktop): distance 4px — un tap puro no activa drag.
+  //   - Touch (mobile): delay 120ms con tolerancia 10px — más
+  //     responsive que 200ms (se sentía pesado), pero suficiente
+  //     para que un swipe de scroll no dispare drag por accidente.
+  //     YouTube Music y Spotify usan ~120-150ms en sus listas.
   //   - Keyboard: navegación accesible.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 10 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -273,7 +271,11 @@ export function QueueModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Lista única */}
-        <div className="flex-1 overflow-y-auto pb-6">
+        {/* overflow-x-hidden: bloquea cualquier scroll lateral causado
+            por filas con contenido más ancho que el viewport (títulos
+            largos, mientras se aplica el truncate). El user reportó
+            que "todo flota muy libre" — esto fija el ancho total. */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6">
           {currentTrack ? (
             <CurrentRow
               cancion={currentTrack.cancion}
@@ -347,40 +349,38 @@ function CurrentRow({
           las filas de abajo, aunque acá no haya handle. */}
       <div aria-hidden className="w-11 shrink-0" />
 
-      {/* Body: tap navega a /cancion (ver letra). */}
+      {/* Body: tap navega a /cancion (ver letra). min-w-0 para que el
+          truncate del título funcione cuando el contenido excede el
+          ancho disponible. */}
       <button
         type="button"
         onClick={onNavigate}
         aria-label={`Ver letra de ${cancion.titulo}`}
-        className="flex flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
       >
         <div
           aria-hidden
-          className="w-6 text-center font-black"
-          style={{
-            fontFamily: "var(--font-display), Anton, sans-serif",
-            fontSize: 16,
-            color: "var(--color-verde-neon)",
-          }}
+          className="flex w-6 shrink-0 items-center justify-center"
+          style={{ color: "var(--color-verde-neon)" }}
         >
-          01
+          {/* Icono de "sonando" en vez del badge SONANDO de antes —
+              ahorra ~70px horizontal y no ensucia con texto. */}
+          <AudioLines size={18} />
         </div>
         <div className="min-w-0 flex-1">
           <div
-            className="flex items-center gap-2 truncate font-bold uppercase"
-            style={{ fontSize: 15, letterSpacing: "0.02em", color: "var(--color-verde-neon)" }}
+            className="truncate font-bold uppercase text-white"
+            style={{ fontSize: 15, letterSpacing: "0.02em" }}
           >
-            <span className="truncate">{cancion.titulo}</span>
-            <span
-              className="rounded px-1.5 py-0.5 text-[8px] font-extrabold leading-none text-black"
-              style={{ background: "var(--color-verde-neon)", letterSpacing: "0.1em" }}
-            >
-              SONANDO
-            </span>
+            {cancion.titulo}
+            {cancion.favorita && (
+              <span style={{ color: "var(--color-verde-neon)", fontSize: 11, marginLeft: 6 }} aria-label="favorita">
+                ★
+              </span>
+            )}
           </div>
           <div
-            className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em]"
-            style={{ color: "rgba(43,255,127,0.7)" }}
+            className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em] text-white/50"
           >
             CD {cd.cd_numero} · {cd.cd_titulo}
             {cancion.duracion ? ` · ${cancion.duracion}` : ""}
@@ -455,15 +455,16 @@ function SortableQueueRow({
         <Menu size={16} />
       </button>
 
-      {/* Body — tap jumpea */}
+      {/* Body — tap jumpea. min-w-0 + flex-1 para que el truncate
+          funcione correctamente cuando el título excede el ancho. */}
       <button
         type="button"
         onClick={onJump}
-        className="flex flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
       >
         <div
           aria-hidden
-          className="w-6 text-center font-black"
+          className="w-6 shrink-0 text-center font-black"
           style={{
             fontFamily: "var(--font-display), Anton, sans-serif",
             fontSize: 16,
@@ -477,14 +478,14 @@ function SortableQueueRow({
         </div>
         <div className="min-w-0 flex-1">
           <div
-            className="flex items-center gap-1.5 truncate font-bold uppercase"
+            className="truncate font-bold uppercase"
             style={{ fontSize: 14, letterSpacing: "0.02em" }}
           >
-            <span className="truncate">{track.cancion.titulo}</span>
+            {track.cancion.titulo}
             {track.cancion.favorita && (
               <span
                 aria-label="favorita"
-                style={{ color: "var(--color-verde-neon)", fontSize: 10 }}
+                style={{ color: "var(--color-verde-neon)", fontSize: 10, marginLeft: 6 }}
               >
                 ★
               </span>
