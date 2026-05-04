@@ -20,6 +20,7 @@
 
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTribunaMode } from "@/lib/use-tribuna-mode";
 
@@ -71,6 +72,14 @@ function shuffle<T>(arr: T[]): T[] {
 
 export function AmbientVideo() {
   const [tribunaMode] = useTribunaMode();
+  const pathname = usePathname();
+  // Modo tribuna SOLO se activa cuando el user está escuchando una
+  // canción (en /cancion/[slug]). En home, /cds, /perfil, etc. siempre
+  // se muestra el humo extintor — ahí los clips de barra distraerían
+  // y comerían batería sin razón. El toggle global del user igual
+  // controla si modo tribuna PUEDE activarse en /cancion.
+  const inSongPage = pathname.startsWith("/cancion/");
+  const showTribunaClips = tribunaMode && inSongPage;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -164,16 +173,17 @@ export function AmbientVideo() {
 
   // Cuando termina un clip de tribuna, rotar al próximo.
   const onEnded = useCallback(() => {
-    if (!tribunaMode) return; // en modo humo el loop nativo lo maneja.
+    if (!showTribunaClips) return; // en modo humo el loop nativo lo maneja.
     setClipIndex((i) => (i + 1) % clipOrder.length);
-  }, [tribunaMode, clipOrder.length]);
+  }, [showTribunaClips, clipOrder.length]);
 
-  // Reset del clipIndex cuando cambia de modo (hidratación, toggle).
-  // Sino podría quedar apuntando a un índice obsoleto si el array cambió.
+  // Reset del clipIndex cuando cambia el modo efectivo (toggle global,
+  // o navegación in/out de /cancion). Sino podría quedar apuntando a
+  // un índice obsoleto si el array cambió.
   useEffect(() => {
     setClipIndex(0);
     setPlaying(false);
-  }, [tribunaMode]);
+  }, [showTribunaClips]);
 
   return (
     <div
@@ -202,7 +212,7 @@ export function AmbientVideo() {
         }}
       />
 
-      {videoMounted && tribunaMode && (
+      {videoMounted && showTribunaClips && (
         <video
           // key forza remount cuando cambia el clip — sino el video
           // queda con el src viejo cargado.
@@ -234,7 +244,7 @@ export function AmbientVideo() {
         />
       )}
 
-      {videoMounted && !tribunaMode && (
+      {videoMounted && !showTribunaClips && (
         <video
           ref={videoRef}
           autoPlay

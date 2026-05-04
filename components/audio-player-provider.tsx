@@ -749,15 +749,72 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     return () => controller.abort();
   }, [upcomingTrack, prevTrack]);
 
-  // Auto-avanzar al terminar: delegar a next() para que respete
-  // queueOverride correctamente (lo SHIFTEA, no lo limpia). pickNext y
-  // upcomingTrack ya están sincronizados con override, shuffle y
-  // repeat — solo nos aseguramos de pasar por la misma ruta que un
-  // tap del usuario en "next" para no duplicar lógica.
-  // Repeat=one: el atributo audio.loop ya reinicia, no hacemos nada.
+  // --- Crossfade entre tracks (volume curve) ---
+  //
+  // Cuando una canción auto-avanza al final:
+  //   1. Los últimos CROSSFADE_OUT_S del track actual: volume baja
+  //      linealmente de 1 a 0 (handler de timeupdate abajo).
+  //   2. onEnded dispara → marca wasAutoAdvancing = true → next().
+  //   3. El effect de currentTrack detecta el flag y hace fade-in del
+  //      track nuevo (vol 0 → 1 en FADE_IN_S).
+  //
+  // No es "true overlap" (los 2 tracks no suenan al mismo tiempo) pero
+  // el resultado se siente como crossfade: la canción se desvanece, la
+  // siguiente entra suave, sin corte abrupto. Para overlap real se
+  // necesitan 2 audio elements (refactor mayor — futuro).
+  const CROSSFADE_OUT_S = 3;
+  const FADE_IN_S = 0.8;
+  const wasAutoAdvancingRef = useRef(false);
+  const fadeInActiveRef = useRef(false);
+  const fadeInRafRef = useRef<number | null>(null);
+
+  const startFadeIn = useCallback((audio: HTMLAudioElement) => {
+    if (fadeInRafRef.current !== null) cancelAnimationFrame(fadeInRafRef.current);
+    fadeInActiveRef.current = true;
+    audio.volume = 0;
+    const startAt = performance.now();
+    const tick = (now: number) => {
+      const elapsed = (now - startAt) / 1000;
+      const progress = Math.min(1, elapsed / FADE_IN_S);
+      audio.volume = progress;
+      if (progress < 1) {
+        fadeInRafRef.current = requestAnimationFrame(tick);
+      } else {
+        fadeInActiveRef.current = false;
+        fadeInRafRef.current = null;
+      }
+    };
+    fadeInRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  // En el cambio de currentTrack: si veníamos de auto-advance, hacer
+  // fade-in. Si fue manual (search modal, song-row, mini-player next/prev)
+  // arrancar a volumen 1 directo — el user clickeó, espera respuesta
+  // inmediata.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !currentTrack) return;
+    if (wasAutoAdvancingRef.current) {
+      wasAutoAdvancingRef.current = false;
+      startFadeIn(el);
+    } else {
+      // Manual: cancelar cualquier fade-in pendiente y volume = 1.
+      if (fadeInRafRef.current !== null) {
+        cancelAnimationFrame(fadeInRafRef.current);
+        fadeInRafRef.current = null;
+        fadeInActiveRef.current = false;
+      }
+      el.volume = 1;
+    }
+  }, [currentTrack, startFadeIn]);
+
+  // Auto-avanzar al terminar: marcar el flag para que el effect del
+  // currentTrack haga fade-in al cargar el siguiente, y delegar a
+  // next() para que respete queueOverride/shuffle/repeat.
   const onEnded = useCallback(() => {
     setIsPlaying(false);
     if (repeatMode === "one") return;
+    wasAutoAdvancingRef.current = true;
     next();
   }, [repeatMode, next]);
 
@@ -802,7 +859,24 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
         }}
         onPause={() => setIsPlaying(false)}
         onEnded={onEnded}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onTimeUpdate={(e) => {
+          const audio = e.currentTarget;
+          const t = audio.currentTime;
+          setCurrentTime(t);
+          // Crossfade out: en los últimos CROSSFADE_OUT_S, volume
+          // baja linealmente. Saltamos esto si un fade-in está en
+          // curso (el RAF fade-in maneja el volume).
+          if (duration > 0 && !fadeInActiveRef.current) {
+            const remaining = duration - t;
+            if (remaining < CROSSFADE_OUT_S && remaining > 0) {
+              audio.volume = Math.max(0, remaining / CROSSFADE_OUT_S);
+            } else if (audio.volume < 0.99 && !wasAutoAdvancingRef.current) {
+              // Fuera de la zona de fade-out (ej. user seekeó atrás).
+              // Restauramos volume = 1.
+              audio.volume = 1;
+            }
+          }
+        }}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
       />
     </Ctx.Provider>
