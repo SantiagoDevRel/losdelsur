@@ -81,8 +81,9 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Catálogo completo para que el player global sepa todas las
-  // canciones (necesario para shuffle "all").
+  // Catálogo completo para que el player global tenga referencia a
+  // todos los CDs (búsqueda en search modal, navegación de la queue
+  // entre CDs en modo secuencial, etc).
   const catalog = getAllCDs();
   return (
     <html

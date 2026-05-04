@@ -25,7 +25,11 @@ interface Track {
   cd: CD;
 }
 
-export type ShuffleMode = "off" | "cd" | "all";
+// Shuffle simplificado a binario (off/on). Cuando está en "on",
+// shuffle dentro del CD que está sonando — comportamiento Spotify.
+// Antes había una variante "all" para shuffle de todo el catálogo
+// pero el user pidió un solo botón shuffle, así que la quitamos.
+export type ShuffleMode = "off" | "on";
 // Como YouTube Music: off → one (repite esta canción) → cd (repite el CD entero).
 export type RepeatMode = "off" | "one" | "cd";
 
@@ -122,21 +126,13 @@ function shuffleArray<T>(arr: T[]): T[] {
 function buildShufflePool(
   currentTrack: Track | null,
   mode: ShuffleMode,
-  catalog: CD[],
+  _catalog: CD[],
 ): Track[] {
-  const all: Track[] = [];
-  if (mode === "cd" && currentTrack) {
-    for (const c of currentTrack.cd.canciones) {
-      all.push({ cancion: c, cd: currentTrack.cd });
-    }
-  } else if (mode === "all") {
-    for (const cd of catalog) {
-      for (const c of cd.canciones) {
-        all.push({ cancion: c, cd });
-      }
-    }
-  }
-  return all;
+  // Shuffle = "on" → pool del CD actual. Si no hay CD context, vacío.
+  // Catalog se pasa por compat con la firma antigua pero ya no se usa
+  // (era para el modo "all" que removimos).
+  if (mode === "off" || !currentTrack) return [];
+  return currentTrack.cd.canciones.map((c) => ({ cancion: c, cd: currentTrack.cd }));
 }
 
 function refillShuffleQueue(history: Track[], pool: Track[]): Track[] {
@@ -634,7 +630,11 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
 
   const cycleShuffle = useCallback(() => {
     haptic("tap");
-    setShuffleMode((m) => (m === "off" ? "cd" : m === "cd" ? "all" : "off"));
+    // Toggle binario off/on. Limpiamos queueOverride para que la
+    // queue visible (en QueueModal) refleje al instante el nuevo
+    // orden mezclado (o el orden secuencial si lo apagaste).
+    setQueueOverride(null);
+    setShuffleMode((m) => (m === "off" ? "on" : "off"));
   }, []);
 
   // Lock-screen "previous track" smart: como Spotify / Apple Music.

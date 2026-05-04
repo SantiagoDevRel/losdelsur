@@ -3,10 +3,20 @@
 // Se abre al tap en el área del título del mini-player O del header
 // del song-view. La canción sigue sonando, no hay nav.
 //
-// Reordenable: cada row tiene un drag handle a la izquierda (icono
-// Menu, "= = ="). Tocás y arrastrás para mover la canción a otra
-// posición. @dnd-kit/sortable maneja el drag (touch + mouse +
-// keyboard accesible).
+// Estructura:
+//   - Header (drag handle visual + close).
+//   - Control strip sticky: scrub bar + tiempos + shuffle / prev /
+//     play-pause / next / repeat. Quedan accesibles mientras el user
+//     scrollea la cola.
+//   - Lista única:
+//       Index 0  = canción actual. Special styling (fondo tintado en
+//                  verde, label "SONANDO"). NO tiene drag handle (no
+//                  tiene sentido reordenar la actual). Tap → abre
+//                  /cancion/[slug] con la letra completa.
+//       Index 1+ = próximas. Cada row tiene drag handle (icono Menu
+//                  "===") para reordenar via @dnd-kit, tap en el body
+//                  jumpea a esa posición, chevron > navega a la
+//                  página de letra, trash quita de la cola.
 
 "use client";
 
@@ -41,7 +51,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { CDCover } from "./cd-cover";
 import { useAudioPlayer, useAudioTime } from "./audio-player-provider";
 import type { CD, Cancion } from "@/lib/types";
 
@@ -74,9 +83,8 @@ export function QueueModal({ isOpen, onClose }: Props) {
 
   const upcoming = useMemo(() => peekQueue(MAX_QUEUE_VISIBLE), [peekQueue]);
 
-  // IDs estables por canción para que dnd-kit pueda trackear el item
-  // durante un drag. Si hay dupes (mismo cancion.id repetida en la
-  // queue, raro pero posible) le agregamos un sufijo posicional.
+  // IDs estables para dnd-kit. Si hay dupes (raro) le agregamos
+  // sufijo posicional para que cada item tenga un id único.
   const ids = useMemo(() => {
     const seen = new Map<string, number>();
     return upcoming.map((t) => {
@@ -87,8 +95,6 @@ export function QueueModal({ isOpen, onClose }: Props) {
     });
   }, [upcoming]);
 
-  // Sensors: distance:5 evita que un tap accidental inicie un drag
-  // (el user queda libre para tap-to-jumpear sin disparar drag).
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -155,7 +161,9 @@ export function QueueModal({ isOpen, onClose }: Props) {
         aria-hidden={!isOpen}
         className="fixed inset-x-0 bottom-0 z-[91] flex flex-col rounded-t-2xl border-t-2 border-white/10 bg-black transition-transform duration-[220ms] ease-out"
         style={{
-          top: "60px",
+          // Safe-area-inset-top para que la dynamic island del iPhone
+          // no tape el drag handle del sheet.
+          top: "calc(env(safe-area-inset-top) + 48px)",
           transform: isOpen ? "translateY(0)" : "translateY(100%)",
         }}
       >
@@ -175,35 +183,86 @@ export function QueueModal({ isOpen, onClose }: Props) {
                 letterSpacing: "0.02em",
               }}
             >
-              AHORA SUENA
+              COLA DE REPRODUCCIÓN
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Cerrar"
-              className="grid size-10 place-items-center rounded-lg border-2 border-white/15 text-white"
+              className="grid size-11 place-items-center rounded-lg border-2 border-white/15 text-white"
             >
               <X size={18} />
             </button>
           </div>
         </div>
 
+        {/* Control strip sticky */}
+        <div className="border-b border-white/10 bg-black px-5 py-3">
+          <ScrubBar duration={duration} onSeek={seek} />
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={cycleShuffle}
+              aria-label={shuffleMode === "off" ? "Activar aleatorio" : "Desactivar aleatorio"}
+              aria-pressed={shuffleMode === "on"}
+              className="grid size-10 place-items-center rounded-full"
+              style={{
+                color: shuffleMode === "off" ? "rgb(255 255 255 / 0.7)" : "var(--color-verde-neon)",
+                background: shuffleMode === "off" ? "transparent" : "rgba(43,255,127,0.12)",
+              }}
+            >
+              <Shuffle size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={prev}
+              aria-label="Anterior"
+              className="grid size-12 place-items-center text-white"
+            >
+              <SkipBack size={22} fill="currentColor" strokeWidth={0} />
+            </button>
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? "Pausar" : "Reproducir"}
+              className="grid size-14 place-items-center rounded-full bg-[var(--color-verde-neon)] text-black"
+            >
+              {isPlaying ? (
+                <Pause size={24} fill="currentColor" strokeWidth={0} />
+              ) : (
+                <Play size={24} fill="currentColor" strokeWidth={0} />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Siguiente"
+              className="grid size-12 place-items-center text-white"
+            >
+              <SkipForward size={22} fill="currentColor" strokeWidth={0} />
+            </button>
+            <button
+              type="button"
+              onClick={cycleRepeat}
+              aria-label="Modo repetir"
+              className="grid size-10 place-items-center rounded-full"
+              style={{
+                color: repeatMode === "off" ? "rgb(255 255 255 / 0.7)" : "var(--color-verde-neon)",
+                background: repeatMode === "off" ? "transparent" : "rgba(43,255,127,0.12)",
+              }}
+            >
+              {repeatMode === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Lista única */}
         <div className="flex-1 overflow-y-auto pb-6">
           {currentTrack ? (
-            <NowPlayingCard
+            <CurrentRow
               cancion={currentTrack.cancion}
               cd={currentTrack.cd}
-              onOpenSong={handleNavigateCurrent}
-              isPlaying={isPlaying}
-              duration={duration}
-              shuffleMode={shuffleMode}
-              repeatMode={repeatMode}
-              onTogglePlay={togglePlay}
-              onPrev={prev}
-              onNext={next}
-              onSeek={seek}
-              onCycleShuffle={cycleShuffle}
-              onCycleRepeat={cycleRepeat}
+              onNavigate={handleNavigateCurrent}
             />
           ) : (
             <p className="px-5 pt-6 text-[13px] font-medium uppercase tracking-[0.05em] text-white/50">
@@ -211,14 +270,12 @@ export function QueueModal({ isOpen, onClose }: Props) {
             </p>
           )}
 
-          <div className="border-t border-white/10 px-5 pb-2 pt-5">
-            <div className="eyebrow">PRÓXIMAS · {upcoming.length}</div>
-          </div>
-
           {upcoming.length === 0 ? (
-            <p className="px-5 pt-2 text-[13px] font-medium uppercase tracking-[0.05em] text-white/50">
-              Vacío. Reordená o agregá canciones para llenar la cola.
-            </p>
+            currentTrack && (
+              <p className="px-5 pt-2 text-[12px] font-medium uppercase tracking-[0.05em] text-white/40">
+                No hay más canciones en cola.
+              </p>
+            )
           ) : (
             <DndContext
               sensors={sensors}
@@ -233,6 +290,9 @@ export function QueueModal({ isOpen, onClose }: Props) {
                       id={ids[i]!}
                       track={t}
                       index={i}
+                      // El número en la lista visual es i+2 porque el
+                      // current ocupa el slot 1.
+                      displayNumber={i + 2}
                       onJump={() => jumpToQueueIndex(i)}
                       onNavigate={() => handleNavigateQueue(i)}
                       onRemove={() => removeFromQueue(i)}
@@ -248,18 +308,92 @@ export function QueueModal({ isOpen, onClose }: Props) {
   );
 }
 
-// ---- Sortable row ----
+// ---- Current (slot 1, no drag) ----
+
+function CurrentRow({
+  cancion,
+  cd,
+  onNavigate,
+}: {
+  cancion: Cancion;
+  cd: CD;
+  onNavigate: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onNavigate}
+      className="flex w-full items-stretch border-b-2 text-left transition-colors"
+      style={{
+        background: "rgba(43,255,127,0.08)",
+        borderBottomColor: "rgba(43,255,127,0.20)",
+      }}
+    >
+      {/* Spacer del ancho del drag handle (44px) para alinear con
+          las filas de abajo, aunque acá no haya handle. */}
+      <div aria-hidden className="w-11 shrink-0" />
+      <div className="flex flex-1 items-center gap-3 py-3 pr-2">
+        <div
+          aria-hidden
+          className="w-6 text-center font-black"
+          style={{
+            fontFamily: "var(--font-display), Anton, sans-serif",
+            fontSize: 16,
+            color: "var(--color-verde-neon)",
+          }}
+        >
+          01
+        </div>
+        <div className="min-w-0 flex-1">
+          <div
+            className="flex items-center gap-2 truncate font-bold uppercase"
+            style={{ fontSize: 15, letterSpacing: "0.02em", color: "var(--color-verde-neon)" }}
+          >
+            <span className="truncate">{cancion.titulo}</span>
+            <span
+              className="rounded px-1.5 py-0.5 text-[8px] font-extrabold leading-none text-black"
+              style={{ background: "var(--color-verde-neon)", letterSpacing: "0.1em" }}
+            >
+              SONANDO
+            </span>
+          </div>
+          <div
+            className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em]"
+            style={{ color: "rgba(43,255,127,0.7)" }}
+          >
+            CD {cd.cd_numero} · {cd.cd_titulo}
+            {cancion.duracion ? ` · ${cancion.duracion}` : ""}
+          </div>
+        </div>
+      </div>
+      <div className="grid w-11 place-items-center" style={{ color: "var(--color-verde-neon)" }}>
+        <ChevronRight size={18} />
+      </div>
+    </button>
+  );
+}
+
+// ---- Sortable upcoming row ----
 
 interface SortableRowProps {
   id: string;
   index: number;
+  displayNumber: number;
   track: { cancion: Cancion; cd: CD };
   onJump: () => void;
   onNavigate: () => void;
   onRemove: () => void;
 }
 
-function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: SortableRowProps) {
+function SortableQueueRow({
+  id,
+  index: _index,
+  displayNumber,
+  track,
+  onJump,
+  onNavigate,
+  onRemove,
+}: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -273,8 +407,6 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    // Mientras drageamos, ponemos zIndex alto para que la fila quede
-    // por encima de las otras (sino la sombra de overlap se ve mal).
     zIndex: isDragging ? 10 : "auto",
     background: isDragging ? "rgba(255,255,255,0.04)" : undefined,
   };
@@ -285,16 +417,13 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
       style={style}
       className="flex items-stretch border-b border-white/[0.06]"
     >
-      {/* Drag handle — sólo este botón inicia drag (listeners attached
-          acá, no en toda la fila). Cursor cambia a grab/grabbing. */}
+      {/* Drag handle — sólo este botón inicia drag. 44px para HIG. */}
       <button
         type="button"
         {...attributes}
         {...listeners}
         aria-label="Arrastrar para reordenar"
-        // touch-none: en mobile, prevenir scroll vertical accidental
-        // mientras el user arrastra. dnd-kit lo necesita.
-        className="grid w-10 shrink-0 cursor-grab touch-none place-items-center text-white/40 transition-colors hover:bg-white/[0.05] hover:text-white active:cursor-grabbing"
+        className="grid w-11 shrink-0 cursor-grab touch-none place-items-center text-white/40 transition-colors hover:bg-white/[0.05] hover:text-white active:cursor-grabbing"
       >
         <Menu size={16} />
       </button>
@@ -317,7 +446,7 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
                 : "#555",
           }}
         >
-          {String(index + 1).padStart(2, "0")}
+          {String(displayNumber).padStart(2, "0")}
         </div>
         <div className="min-w-0 flex-1">
           <div
@@ -349,7 +478,7 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
         type="button"
         onClick={onNavigate}
         aria-label={`Ir a la página de ${track.cancion.titulo}`}
-        className="grid w-9 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
+        className="grid w-11 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-white"
       >
         <ChevronRight size={18} />
       </button>
@@ -359,7 +488,7 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
         type="button"
         onClick={onRemove}
         aria-label="Quitar de la cola"
-        className="grid w-10 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
+        className="grid w-11 place-items-center text-white/40 transition-colors hover:bg-white/[0.03] hover:text-red-400"
       >
         <Trash2 size={16} />
       </button>
@@ -367,118 +496,7 @@ function SortableQueueRow({ id, index, track, onJump, onNavigate, onRemove }: So
   );
 }
 
-// ---- Now-playing card ----
-
-interface NowPlayingProps {
-  cancion: Cancion;
-  cd: CD;
-  onOpenSong: () => void;
-  isPlaying: boolean;
-  duration: number;
-  shuffleMode: ReturnType<typeof useAudioPlayer>["shuffleMode"];
-  repeatMode: ReturnType<typeof useAudioPlayer>["repeatMode"];
-  onTogglePlay: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  onSeek: (t: number) => void;
-  onCycleShuffle: () => void;
-  onCycleRepeat: () => void;
-}
-
-function NowPlayingCard(props: NowPlayingProps) {
-  const {
-    cancion,
-    cd,
-    onOpenSong,
-    isPlaying,
-    duration,
-    shuffleMode,
-    repeatMode,
-    onTogglePlay,
-    onPrev,
-    onNext,
-    onCycleShuffle,
-    onCycleRepeat,
-    onSeek,
-  } = props;
-
-  return (
-    <div className="px-5 pt-5">
-      <button
-        type="button"
-        onClick={onOpenSong}
-        className="flex w-full items-center gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-left transition-colors hover:bg-white/[0.05]"
-      >
-        <CDCover cd={cd} size="sm" />
-        <div className="min-w-0 flex-1">
-          <div
-            className="truncate font-bold uppercase text-white"
-            style={{ fontSize: 16, letterSpacing: "0.02em" }}
-          >
-            {cancion.titulo}
-          </div>
-          <div className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.08em] text-white/50">
-            CD {cd.cd_numero} · {cd.cd_titulo}
-          </div>
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-verde-neon)]">
-            VER LETRA →
-          </div>
-        </div>
-      </button>
-
-      <ScrubBar duration={duration} onSeek={onSeek} />
-
-      <div className="mt-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onCycleShuffle}
-          aria-label="Modo shuffle"
-          className="grid size-10 place-items-center rounded-full"
-          style={{ color: shuffleMode === "off" ? "#888" : "var(--color-verde-neon)" }}
-        >
-          <Shuffle size={18} />
-        </button>
-        <button
-          type="button"
-          onClick={onPrev}
-          aria-label="Anterior"
-          className="grid size-12 place-items-center text-white"
-        >
-          <SkipBack size={22} fill="currentColor" strokeWidth={0} />
-        </button>
-        <button
-          type="button"
-          onClick={onTogglePlay}
-          aria-label={isPlaying ? "Pausar" : "Reproducir"}
-          className="grid size-14 place-items-center rounded-full bg-[var(--color-verde-neon)] text-black"
-        >
-          {isPlaying ? (
-            <Pause size={24} fill="currentColor" strokeWidth={0} />
-          ) : (
-            <Play size={24} fill="currentColor" strokeWidth={0} />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          aria-label="Siguiente"
-          className="grid size-12 place-items-center text-white"
-        >
-          <SkipForward size={22} fill="currentColor" strokeWidth={0} />
-        </button>
-        <button
-          type="button"
-          onClick={onCycleRepeat}
-          aria-label="Modo repetir"
-          className="grid size-10 place-items-center rounded-full"
-          style={{ color: repeatMode === "off" ? "#888" : "var(--color-verde-neon)" }}
-        >
-          {repeatMode === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
-        </button>
-      </div>
-    </div>
-  );
-}
+// ---- Scrub bar (aislada para que el tick a 4Hz no re-renderice todo) ----
 
 function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) => void }) {
   const currentTime = useAudioTime();
@@ -490,8 +508,14 @@ function ScrubBar({ duration, onSeek }: { duration: number; onSeek: (t: number) 
     return `${m}:${ss.toString().padStart(2, "0")}`;
   };
   return (
-    <div className="mt-4">
+    <div>
       <div
+        role="slider"
+        aria-label="Progreso"
+        aria-valuemin={0}
+        aria-valuemax={duration || 0}
+        aria-valuenow={currentTime}
+        tabIndex={0}
         className="relative h-1.5 cursor-pointer rounded-full bg-white/10"
         onClick={(e) => {
           if (duration <= 0) return;

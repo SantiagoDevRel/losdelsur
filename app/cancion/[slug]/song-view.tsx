@@ -421,18 +421,14 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
             <ChevronsLeft size={28} strokeWidth={2.2} />
           </button>
 
-          {/* Shuffle: off -> cd -> all -> off. Verde cuando activo. */}
+          {/* Shuffle: toggle binario off/on. Cuando on: shuffle dentro
+              del CD. Verde cuando activo. */}
           <button
             type="button"
             data-noswipe="true"
             onClick={cycleShuffle}
-            aria-label={
-              shuffleMode === "off"
-                ? "Activar aleatorio"
-                : shuffleMode === "cd"
-                  ? "Aleatorio dentro del CD"
-                  : "Aleatorio de todo el catálogo"
-            }
+            aria-label={shuffleMode === "off" ? "Activar aleatorio" : "Desactivar aleatorio"}
+            aria-pressed={shuffleMode === "on"}
             className="relative grid size-9 shrink-0 place-items-center rounded-full"
             style={{
               color: shuffleMode === "off" ? "rgb(255 255 255 / 0.7)" : "var(--color-verde-neon)",
@@ -440,14 +436,6 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
             }}
           >
             <Shuffle size={18} />
-            {shuffleMode === "all" && (
-              <span
-                className="absolute -bottom-0 -right-0 rounded-full bg-[var(--color-verde-neon)] text-[7px] font-extrabold leading-none text-black"
-                style={{ padding: "2px 3px" }}
-              >
-                ALL
-              </span>
-            )}
           </button>
 
           {/* Repeat: off -> one -> cd -> off. */}
