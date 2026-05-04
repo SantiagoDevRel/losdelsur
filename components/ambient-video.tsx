@@ -25,6 +25,28 @@ export function AmbientVideo() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [playing, setPlaying] = useState(false);
+  // Difiere la carga del video hasta DESPUÉS del primer paint. Hasta
+  // entonces sólo se muestra el poster (~42 KB) y no se baja el video
+  // (~500 KB). Una vez la página está visible y estable, idle callback
+  // arranca la descarga del video y eventualmente fade-in al play.
+  const [videoMounted, setVideoMounted] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const idle = (cb: () => void) => {
+      const w = window as unknown as {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      };
+      if (w.requestIdleCallback) {
+        return w.requestIdleCallback(cb, { timeout: 2000 });
+      }
+      return window.setTimeout(cb, 800);
+    };
+    const handle = idle(() => setVideoMounted(true));
+    return () => {
+      const w = window as unknown as { cancelIdleCallback?: (h: number) => void };
+      if (w.cancelIdleCallback && typeof handle === "number") w.cancelIdleCallback(handle);
+    };
+  }, []);
 
   // Parallax sutil: el fondo se mueve a ~6% del scroll del usuario.
   // Da sensación de profundidad sin llamar la atención. Usa
@@ -121,18 +143,22 @@ export function AmbientVideo() {
         }}
       />
 
+      {/* Video diferido: hasta que videoMounted=true (idle callback
+          después del primer paint) NO se monta el <video>, así no se
+          dispara descarga ni metadata fetch. El poster sigue visible
+          desde el div de arriba con la imagen estática. Una vez
+          montado, preload="auto" baja el archivo y arranca play. */}
+      {videoMounted && (
       <video
         ref={videoRef}
         autoPlay
         muted
         loop
         playsInline
-        // preload="metadata" en lugar de "auto": el poster ya da el
-        // efecto visual de fondo, no hace falta bajar 540 KB de video
-        // ANTES del LCP del home en mobile 4G. El video arranca cuando
-        // la metadata cargó (suficiente para play), no cuando bajó
-        // entero.
-        preload="metadata"
+        // Después del primer paint, sí queremos preload="auto" para
+        // que el video arranque rápido — el costo de network ya no
+        // está compitiendo con el LCP.
+        preload="auto"
         poster="/design-assets/barra-bg-poster.jpg"
         className="absolute w-full object-cover transition-opacity duration-[1200ms]"
         style={{
@@ -157,6 +183,7 @@ export function AmbientVideo() {
         <source src="/design-assets/barra-bg-sm.mp4" type="video/mp4" />
         <source src="/design-assets/barra-bg-sm.webm" type="video/webm" />
       </video>
+      )}
 
       {/* Overlay oscurecedor para legibilidad del texto. */}
       <div

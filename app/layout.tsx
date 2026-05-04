@@ -47,7 +47,20 @@ const barlow = Barlow_Condensed({
 
 const NACIONAL_GREEN = "#006837";
 
+// metadataBase: necesario para que Next pueda resolver URLs absolutos
+// de OG images, canonical, etc. sin warnings en build. En prod usa
+// VERCEL_PROJECT_PRODUCTION_URL (la URL de producción del proyecto),
+// con fallback al dominio custom o al deploy URL del preview.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "La Banda Los Del Sur",
   description:
     "Cancionero oficial de la barra Los Del Sur: letras y audio offline para el día de partido.",

@@ -25,7 +25,8 @@ import { useRouter } from "next/navigation";
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -98,8 +99,19 @@ export function QueueModal({ isOpen, onClose }: Props) {
     });
   }, [upcoming]);
 
+  // Sensors separados por input device para evitar el conflict
+  // drag-vs-scroll que pasa con PointerSensor unificado en mobile:
+  //   - Mouse (desktop): distance 5px — un tap puro no activa drag,
+  //     un click+drag inmediato sí.
+  //   - Touch (mobile): delay 200ms con tolerancia 5px — el user
+  //     necesita TOCAR Y SOSTENER 200ms para empezar a draggear. Si
+  //     mueve el dedo antes (intent de scroll), no dispara drag y la
+  //     lista scrollea normal. Patrón estándar para listas
+  //     reorderables en mobile (Spotify, YouTube Music funcionan así).
+  //   - Keyboard: navegación accesible.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
