@@ -32,10 +32,14 @@ export function UpdateToast() {
   const onActivate = async () => {
     setActivating(true);
     try {
+      // activatePendingServiceWorker ahora espera a que el SW llegue
+      // a 'activated' (o expire en 4s safety). Cuando resuelve, el
+      // nuevo SW tomó control. Recargamos explícito sin depender del
+      // controllerchange listener que en Safari iOS llega tarde —
+      // y además el sessionStorage flag suprime un eventual toast
+      // post-reload por la grace window de 10s.
       await activatePendingServiceWorker();
-      // El reload lo dispara el controllerchange listener; si por
-      // alguna razón no llega en 3s, forzar reload manual.
-      setTimeout(() => window.location.reload(), 3000);
+      window.location.reload();
     } catch {
       setActivating(false);
       setShow(false);

@@ -7,12 +7,24 @@
 // disparamos un CustomEvent("sw-update-available") que UpdateToast
 // escucha. El user toca el toast → postMessage SKIP_WAITING → el SW
 // nuevo se activa y recargamos para que tome control.
+//
+// Anti-loop: cuando el user toca "Actualizar", marcamos un flag en
+// sessionStorage. En el próximo load, suprimimos el toast por 10s
+// para dar tiempo al SW recién activado a estabilizarse y evitar
+// que Safari muestre el toast de nuevo por una "waiting" residual
+// del flow de activación que no se limpió a tiempo.
 
 "use client";
 
 import { useEffect } from "react";
 
 const SW_UPDATE_EVENT = "sw-update-available";
+const SW_JUST_ACTIVATED_KEY = "sw-just-activated";
+// Ventana en ms tras un update donde NO mostramos otro toast aunque
+// reg.waiting esté seteado. Cubre la race condition de Safari iOS
+// donde el statechange "activated" + clientsClaim + controllerchange
+// no llegan exactamente en el orden esperado.
+const POST_UPDATE_GRACE_MS = 10_000;
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
@@ -22,6 +34,30 @@ export function ServiceWorkerRegister() {
 
     let cleanup: (() => void) | undefined;
 
+    // Lee el timestamp del último update activado y calcula si seguimos
+    // dentro de la grace window (no mostrar toast otra vez tan pronto).
+    const inGraceWindow = (): boolean => {
+      try {
+        const raw = sessionStorage.getItem(SW_JUST_ACTIVATED_KEY);
+        if (!raw) return false;
+        const ts = Number(raw);
+        if (!Number.isFinite(ts)) return false;
+        const age = Date.now() - ts;
+        if (age > POST_UPDATE_GRACE_MS) {
+          sessionStorage.removeItem(SW_JUST_ACTIVATED_KEY);
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const maybeDispatchUpdate = () => {
+      if (inGraceWindow()) return;
+      window.dispatchEvent(new CustomEvent(SW_UPDATE_EVENT));
+    };
+
     const onLoad = async () => {
       try {
         const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
@@ -30,7 +66,7 @@ export function ServiceWorkerRegister() {
         // recargó después de que Serwist instaló la versión nueva en
         // background, pero no se activó porque skipWaiting=false).
         if (reg.waiting && navigator.serviceWorker.controller) {
-          window.dispatchEvent(new CustomEvent(SW_UPDATE_EVENT));
+          maybeDispatchUpdate();
         }
 
         // Caso 2: durante la sesión actual aparece una nueva versión.
@@ -46,7 +82,7 @@ export function ServiceWorkerRegister() {
               installing.state === "installed" &&
               navigator.serviceWorker.controller
             ) {
-              window.dispatchEvent(new CustomEvent(SW_UPDATE_EVENT));
+              maybeDispatchUpdate();
             }
           });
         };
@@ -96,13 +132,42 @@ export function ServiceWorkerRegister() {
   return null;
 }
 
-// Helper que dispara UpdateToast cuando el user confirma. Puesto
-// acá para que el toast no necesite importar todo este módulo, solo
-// la función.
+// Helper que dispara UpdateToast cuando el user confirma. Espera a
+// que el SW efectivamente cambie a "activated" antes de resolver,
+// y marca un flag en sessionStorage para que el ServiceWorkerRegister
+// del próximo load suprima el toast por la grace window (evita el
+// loop "actualizar -> reload -> toast otra vez" que pasaba en Safari
+// iOS por race conditions del activation flow).
 export async function activatePendingServiceWorker(): Promise<void> {
   if (!("serviceWorker" in navigator)) return;
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg?.waiting) return;
-  reg.waiting.postMessage({ type: "SKIP_WAITING" });
-  // El controllerchange listener en ServiceWorkerRegister hace el reload.
+
+  // Marcar PRIMERO el flag — antes de que cualquier cosa async pueda
+  // disparar otro detect en otra tab / page. Si el activate falla, el
+  // grace expira solo en 10s.
+  try {
+    sessionStorage.setItem(SW_JUST_ACTIVATED_KEY, String(Date.now()));
+  } catch {
+    /* private mode / storage quota — no critical */
+  }
+
+  const waiting = reg.waiting;
+  await new Promise<void>((resolve) => {
+    let resolved = false;
+    const done = () => {
+      if (resolved) return;
+      resolved = true;
+      waiting.removeEventListener("statechange", onStateChange);
+      resolve();
+    };
+    const onStateChange = () => {
+      if (waiting.state === "activated" || waiting.state === "redundant") done();
+    };
+    waiting.addEventListener("statechange", onStateChange);
+    waiting.postMessage({ type: "SKIP_WAITING" });
+    // Safety: si statechange nunca llega (Safari tiene bugs conocidos),
+    // resolver tras 4s para no colgar el flow del UpdateToast.
+    setTimeout(done, 4000);
+  });
 }
