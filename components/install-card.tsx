@@ -12,7 +12,8 @@
 //   - Ya instalada → check verde + botón de "Buscar actualización"
 //     que llama a `registration.update()` sobre el Service Worker.
 //
-// Imaginería: usa `/install-art/android.png` y `/install-art/iphone.png`
+// Imaginería: usa `/install-art/install.webp` (un solo asset compartido
+// para iOS y Android — antes había duplicado de PNG, ahora 1 webp).
 // (cuadradas, más legibles que el logo circular normal).
 
 "use client";
@@ -144,13 +145,13 @@ export function InstallCard() {
 
   // --- No instalada: card con botón directo ---
 
-  // Elegimos la ilustración según plataforma. Desktop cae al logo default.
+  // Mismo arte para iOS y Android (era el mismo PNG duplicado, ahora
+  // unificado en un único webp 9× más liviano: 332KB -> 36KB). Desktop
+  // sigue cayendo al logo default.
   const art =
-    platform === "ios" || platform === "ios-other"
-      ? "/install-art/iphone.png"
-      : platform === "android"
-        ? "/install-art/android.png"
-        : "/logo.png";
+    platform === "ios" || platform === "ios-other" || platform === "android"
+      ? "/install-art/install.webp"
+      : "/logo.png";
 
   // En iOS con browser que NO es Safari, la instalación es imposible
   // — ni siquiera mostrando instrucciones. Hay que cambiar de browser.

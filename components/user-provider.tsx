@@ -4,6 +4,11 @@
 // donde el browser → supabase.co se cuelga indefinidamente en algunas
 // redes/devices). Sigue escuchando onAuthStateChange para login/logout
 // en tiempo real.
+//
+// El cliente supabase-js (~179 KB raw) se carga LAZY con dynamic
+// import dentro del effect inicial — fuera del bundle de cada página.
+// El primer paint del home no necesita supabase montado, solo la
+// suscripción a auth changes (que arranca después del paint).
 
 "use client";
 
@@ -12,12 +17,10 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from "react";
-import type { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { PerfilSureno } from "@/lib/supabase/types";
 
 interface UserContextValue {
@@ -59,10 +62,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setPerfilSureno] = useState<PerfilSureno | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Cliente Supabase solo para escuchar onAuthStateChange (login/logout).
-  // Los reads de profile NO van por acá — van por /api/me/profile.
-  const supabase = useMemo(() => createClient(), []);
+  // Cliente Supabase para escuchar onAuthStateChange (login/logout).
+  // Se carga lazy DESPUÉS del primer paint vía dynamic import. Hasta
+  // que esté disponible es null y los effects que lo usan esperan.
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   const refreshProfile = useCallback(async () => {
     const me = await fetchMe();
@@ -74,6 +77,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setPerfilSureno(p);
   }, []);
 
+  // Effect inicial: 1) fetch /api/me/profile (server-side, no requiere
+  // supabase client en cliente), 2) dynamic import del cliente para
+  // que esté listo cuando lleguen events de auth.
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -87,9 +93,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const me = await fetchMe(controller.signal);
       if (cancelled) return;
       if (me && me.user) {
-        // Reconstruimos un User mínimo a partir de lo que devuelve el server.
-        // No tenemos acceso al JWT completo en client (ni queremos), así que
-        // dejamos el resto del User como es por compatibilidad de tipos.
         setUser({
           id: me.user.id,
           phone: me.user.phone ?? undefined,
@@ -101,11 +104,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setPerfilSureno(null);
       }
       setLoading(false);
+
+      // Lazy load del cliente supabase. Este import baja el chunk
+      // de @supabase/ssr + supabase-js DESPUÉS del primer paint, así
+      // que no bloquea LCP.
+      const { createClient } = await import("@/lib/supabase/client");
+      if (cancelled) return;
+      setSupabase(createClient());
     })();
 
-    // onAuthStateChange dispara en login/logout dentro de esta tab. Cuando
-    // el evento llega, refrescamos via /api/me/profile (no via supabase.co
-    // direct) para evitar el cuelgue.
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(failsafe);
+    };
+  }, []);
+
+  // Auth change subscription: corre solo cuando supabase ya cargó.
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
       if (cancelled) return;
       if (event === "SIGNED_OUT") {
@@ -131,8 +150,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
-      controller.abort();
-      clearTimeout(failsafe);
       sub.subscription.unsubscribe();
     };
   }, [supabase]);
@@ -152,7 +169,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const data = (await res.json()) as { valid: boolean; reason?: string };
         if (cancelled) return;
         if (!data.valid && data.reason === "kicked") {
-          await supabase.auth.signOut().catch(() => {});
+          // Si supabase aún no cargó, salteamos el signOut local —
+          // el redirect ya invalidaría la sesión en el server.
+          if (supabase) await supabase.auth.signOut().catch(() => {});
           if (typeof window !== "undefined") {
             window.location.href = "/login?error=kicked";
           }

@@ -127,7 +127,12 @@ export function AmbientVideo() {
         muted
         loop
         playsInline
-        preload="auto"
+        // preload="metadata" en lugar de "auto": el poster ya da el
+        // efecto visual de fondo, no hace falta bajar 540 KB de video
+        // ANTES del LCP del home en mobile 4G. El video arranca cuando
+        // la metadata cargó (suficiente para play), no cuando bajó
+        // entero.
+        preload="metadata"
         poster="/design-assets/barra-bg-poster.jpg"
         className="absolute w-full object-cover transition-opacity duration-[1200ms]"
         style={{

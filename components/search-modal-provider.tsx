@@ -3,12 +3,27 @@
 // modal sea accesible desde cualquier pantalla sin necesidad de
 // navegar a /search. Mantiene el audio sonando porque el AudioPlayer
 // envuelve el árbol entero.
+//
+// El componente del modal se lazy-loadea con dynamic + se monta sólo
+// cuando el user lo abre por primera vez. Saca su chunk del bundle
+// inicial.
 
 "use client";
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type ReactNode,
+} from "react";
 import type { CD } from "@/lib/types";
-import { SearchModal } from "./search-modal";
+
+const SearchModal = dynamic(
+  () => import("./search-modal").then((m) => ({ default: m.SearchModal })),
+  { ssr: false },
+);
 
 interface SearchModalContextValue {
   isOpen: boolean;
@@ -32,13 +47,20 @@ export function SearchModalProvider({
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const open = useCallback(() => setIsOpen(true), []);
+  // mounted: una vez que se abre la primera vez, dejamos el componente
+  // montado para que la 2da apertura sea instantánea (sin re-fetch del
+  // chunk). Si nunca se abre, ni baja el chunk.
+  const [mounted, setMounted] = useState(false);
+  const open = useCallback(() => {
+    setMounted(true);
+    setIsOpen(true);
+  }, []);
   const close = useCallback(() => setIsOpen(false), []);
 
   return (
     <Ctx.Provider value={{ isOpen, open, close }}>
       {children}
-      <SearchModal cds={cds} isOpen={isOpen} onClose={close} />
+      {mounted && <SearchModal cds={cds} isOpen={isOpen} onClose={close} />}
     </Ctx.Provider>
   );
 }

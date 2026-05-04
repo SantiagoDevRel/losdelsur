@@ -19,7 +19,22 @@ const withSerwist = withSerwistInit({
   // precachee 470 MB de audios al instalar — el user los descarga
   // selectivamente con el botón "Descargar". El runtime CacheFirst
   // (ver app/sw.ts) los maneja on-demand.
-  globPublicPatterns: ["**/*", "!**/*.m4a", "!**/*.mp3", "!audio/**"],
+  // Excluimos también:
+  //   - tribuna-sur.webp (296 KB, solo se usa en /tribuna; no tiene
+  //     sentido pre-bajarlo en la instalación — runtime cache lo
+  //     agarra cuando el user entra a esa ruta).
+  //   - install-art/* (las ilustraciones de "instalá la PWA" que solo
+  //     se ven antes de instalar — irrelevante post-install).
+  //   - design-source/* (assets de diseño grandes, no consumidos en runtime).
+  globPublicPatterns: [
+    "**/*",
+    "!**/*.m4a",
+    "!**/*.mp3",
+    "!audio/**",
+    "!tribuna-sur.webp",
+    "!install-art/**",
+    "!design-source/**",
+  ],
 });
 
 // Cache del audio: el cache-buster vive en el PATH del archivo (sufijo
