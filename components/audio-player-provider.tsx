@@ -45,6 +45,9 @@ interface AudioPlayerContextValue {
   repeatMode: RepeatMode;
   shuffleMode: ShuffleMode;
 
+  // Ref al elemento <audio> activo. Expuesto para que el AudioVisualizer
+  // pueda conectar el audio al Web Audio API (AnalyserNode).
+  audioRef: React.RefObject<HTMLAudioElement | null>;
   loadAndPlay: (cancion: Cancion, cd: CD) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
@@ -826,6 +829,7 @@ export function AudioPlayerProvider({ children, catalog }: Props) {
     duration,
     repeatMode,
     shuffleMode,
+    audioRef,
     loadAndPlay,
     togglePlay,
     seek,

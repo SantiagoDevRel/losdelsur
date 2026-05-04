@@ -19,6 +19,7 @@ import { emit } from "@/lib/user-sync";
 import { useAudioPlayer, useAudioTime } from "@/components/audio-player-provider";
 import { useQueueModal } from "@/components/queue-modal-provider";
 import { PlayerScrubBar } from "@/components/player-scrub-bar";
+import { AudioVisualizer } from "@/components/audio-visualizer";
 
 interface SongViewProps {
   cancion: Cancion;
@@ -232,6 +233,11 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
 
   return (
     <main className="relative min-h-dvh">
+      {/* Visualizer audio-reactivo. Solo se renderiza si Modo Tribuna
+          está ON. Se posiciona fixed al pie del viewport, opacity 35%
+          + mix-blend-mode screen para que se mezcle con la letra sin
+          taparla. */}
+      <AudioVisualizer />
       {/* Tint del color del CD */}
       <div
         aria-hidden

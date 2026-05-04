@@ -40,7 +40,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  AudioLines,
   Check,
   ChevronRight,
   Download,
@@ -55,6 +54,7 @@ import {
   SkipForward,
   X,
 } from "lucide-react";
+import { CDCover } from "./cd-cover";
 import { useAudioPlayer } from "./audio-player-provider";
 import { PlayerScrubBar } from "./player-scrub-bar";
 import { downloadAudio, isAudioCached } from "@/lib/download";
@@ -280,6 +280,7 @@ export function QueueModal({ isOpen, onClose }: Props) {
             <CurrentRow
               cancion={currentTrack.cancion}
               cd={currentTrack.cd}
+              isPlaying={isPlaying}
               onNavigate={handleNavigateCurrent}
             />
           ) : (
@@ -327,10 +328,12 @@ export function QueueModal({ isOpen, onClose }: Props) {
 function CurrentRow({
   cancion,
   cd,
+  isPlaying,
   onNavigate,
 }: {
   cancion: Cancion;
   cd: CD;
+  isPlaying: boolean;
   onNavigate: () => void;
 }) {
   return (
@@ -354,15 +357,11 @@ function CurrentRow({
         aria-label={`Ver letra de ${cancion.titulo}`}
         className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left transition-colors hover:bg-white/[0.03]"
       >
-        <div
-          aria-hidden
-          className="flex w-6 shrink-0 items-center justify-center"
-          style={{ color: "var(--color-verde-neon)" }}
-        >
-          {/* Icono de "sonando" en vez del badge SONANDO de antes —
-              ahorra ~70px horizontal y no ensucia con texto. */}
-          <AudioLines size={18} />
-        </div>
+        {/* Cover circular del CD con breathing animation cuando isPlaying.
+            Reemplaza el ícono AudioLines anterior — la portada
+            comunica la misma idea (audio activo) y agrega identidad
+            visual del álbum. */}
+        <CDCover cd={cd} size="sm" breathing={isPlaying} />
         <div className="min-w-0 flex-1">
           <div
             className="truncate font-bold uppercase text-white"
