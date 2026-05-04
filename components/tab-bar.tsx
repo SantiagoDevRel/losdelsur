@@ -51,13 +51,6 @@ export function TabBar() {
           const active = key === "search" ? searchOpen || matches(pathname) : matches(pathname);
           const tabBody = (
             <>
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute top-1 h-0.5 w-6"
-                  style={{ background: "var(--color-verde-neon)" }}
-                />
-              )}
               <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
               {/* "CDs" queda con la "s" en minúscula; el resto de
                   labels se verían igual en mayúsculas de todas formas. */}
