@@ -1,21 +1,21 @@
 // components/audio-visualizer.tsx
-// Visualizer audio-reactivo. Conecta el <audio> del AudioPlayerProvider
-// al Web Audio API (AnalyserNode), lee getByteFrequencyData en un loop
-// requestAnimationFrame y pinta 32 barras estilo Apple Music sobre un
-// <canvas>.
+// Visualizer "estilo Apple Music" — 32 barras animadas en la parte
+// inferior del reproductor.
+//
+// IMPORTANTE: NO usa Web Audio API. Anteriormente conectábamos el
+// `<audio>` con createMediaElementSource() para leer datos de
+// frecuencia reales, pero eso rerouteaba el audio por un AudioContext
+// que en iOS Safari se queda suspended fuera de user-gestures —
+// resultado: la canción reproducía pero no salía sonido. Bug crítico
+// en prod (fix: 2026-05).
+//
+// Ahora generamos datos sintéticos con sine waves + ruido. Mientras
+// `isPlaying` es true las barras se mueven con energía; al pausar
+// caen a un mínimo. Visualmente ~90% del impacto del visualizer real
+// y CERO riesgo de afectar el output de audio.
 //
 // Solo se monta en /cancion/[slug] (donde escuchamos) y solo cuando
-// Modo Tribuna está ON. Para otros contextos volvemos al `<audio>` puro
-// sin Web Audio en el medio.
-//
-// Importante para iOS / Web Audio:
-//   - createMediaElementSource() es one-shot por audio element. Una vez
-//     conectado, no se puede desconectar limpio. Por eso la conexión es
-//     idempotente con un ref que recuerda si ya pasó.
-//   - AudioContext requiere user gesture para arrancar. Si el user llegó
-//     a /cancion ya escuchando, el gesture inicial vino antes (en otro
-//     componente). Si está suspended, hacemos resume() en el primer
-//     mount con audio playing.
+// algún toggle de Modo Tribuna está ON.
 
 "use client";
 
@@ -26,69 +26,28 @@ import { useTribunaModes } from "@/lib/use-tribuna-mode";
 const BAR_COUNT = 32;
 const VERDE_NEON = "#2BFF7F";
 
-// Estado global compartido — el Web Audio API solo permite UN
-// MediaElementAudioSourceNode por elemento <audio>. Si remontamos el
-// visualizer (navegar fuera y volver a /cancion), reusamos el mismo
-// AudioContext + source.
-let sharedContext: AudioContext | null = null;
-let sharedSource: MediaElementAudioSourceNode | null = null;
-let sharedAnalyser: AnalyserNode | null = null;
-
-function ensureWebAudio(audio: HTMLAudioElement): AnalyserNode | null {
-  if (typeof window === "undefined") return null;
-  try {
-    if (!sharedContext) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctx) return null;
-      sharedContext = new Ctx();
-    }
-    if (sharedContext.state === "suspended") {
-      void sharedContext.resume().catch(() => {});
-    }
-    if (!sharedSource) {
-      sharedSource = sharedContext.createMediaElementSource(audio);
-      sharedAnalyser = sharedContext.createAnalyser();
-      sharedAnalyser.fftSize = 128; // 64 frequency bins
-      sharedAnalyser.smoothingTimeConstant = 0.78;
-      sharedSource.connect(sharedAnalyser);
-      sharedAnalyser.connect(sharedContext.destination);
-    }
-    return sharedAnalyser;
-  } catch {
-    return null;
-  }
-}
-
 export function AudioVisualizer() {
-  const { audioRef, isPlaying } = useAudioPlayer();
+  const { isPlaying } = useAudioPlayer();
   const [modes] = useTribunaModes();
-  // El visualizer aparece si CUALQUIER toggle está ON (estamos siempre
-  // en /cancion[slug] cuando este componente se monta).
   const tribunaActive = modes.reproductor || modes.general;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const isPlayingRef = useRef(isPlaying);
+  // Energía suavizada — sube/baja gradualmente para que el toggle
+  // play/pause no produzca un corte abrupto en la animación.
+  const energyRef = useRef(0);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!tribunaActive) return;
-    const audio = audioRef.current;
     const canvas = canvasRef.current;
-    if (!audio || !canvas) return;
-
-    // Conectar al Web Audio API (idempotente — si ya está conectado,
-    // recuperamos el analyser existente).
-    const analyser = ensureWebAudio(audio);
-    if (!analyser) return;
-
+    if (!canvas) return;
     const ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
 
-    // Buffer de datos de frecuencia. fftSize=128 → 64 bins. Tomamos
-    // los primeros BAR_COUNT.
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    // Resize del canvas según devicePixelRatio para que las barras
-    // se vean nítidas en retina sin pixelado.
     function resize() {
       if (!canvas) return;
       const dpr = window.devicePixelRatio || 1;
@@ -100,12 +59,17 @@ export function AudioVisualizer() {
     resize();
     window.addEventListener("resize", resize);
 
-    function draw() {
-      if (!analyser || !ctx2d || !canvas) {
+    function draw(now: number) {
+      if (!ctx2d || !canvas) {
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
-      analyser.getByteFrequencyData(dataArray);
+      // Energía objetivo: 0.85 cuando suena, 0.08 cuando pausado.
+      // Lerp suave (factor 0.04) hacia el target — transition ~0.5s.
+      const target = isPlayingRef.current ? 0.85 : 0.08;
+      energyRef.current += (target - energyRef.current) * 0.04;
+      const energy = energyRef.current;
+
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       ctx2d.clearRect(0, 0, w, h);
@@ -113,14 +77,20 @@ export function AudioVisualizer() {
       const barWidth = (w / BAR_COUNT) * 0.55;
       const barGap = (w / BAR_COUNT) * 0.45;
 
+      const t = now / 1000;
+
       for (let i = 0; i < BAR_COUNT; i++) {
-        // Distribución log-style: las freq agudas tienen menos peso
-        // visual (sino las primeras barras dominan toda la imagen).
-        const idx = Math.floor(Math.pow(i / BAR_COUNT, 1.5) * bufferLength);
-        const value = dataArray[idx] ?? 0; // 0..255
-        // Barra mínima visible incluso en silencio absoluto, para
-        // que el visualizer no desaparezca en las pausas musicales.
-        const normalized = Math.max(0.06, value / 255);
+        // 3 sine waves a distintas frecuencias + fase por barra.
+        // El resultado se ve como "frequency data" sin serlo.
+        const phase = i * 0.42;
+        const a = Math.sin(t * 4.1 + phase) * 0.5 + 0.5;
+        const b = Math.sin(t * 7.3 + phase * 1.7) * 0.5 + 0.5;
+        const c = Math.sin(t * 1.9 + phase * 0.3) * 0.5 + 0.5;
+        // Ponderado: predominan las medias frecuencias (el "beat" visual).
+        const wave = a * 0.5 + b * 0.3 + c * 0.2;
+        // Noise leve para que no se vea perfectamente periódico.
+        const noise = (Math.random() - 0.5) * 0.12;
+        const normalized = Math.max(0.06, energy * (wave + noise));
         const barHeight = normalized * h;
         const x = i * (barWidth + barGap) + barGap / 2;
         const y = h - barHeight;
@@ -130,16 +100,14 @@ export function AudioVisualizer() {
       rafRef.current = requestAnimationFrame(draw);
     }
 
-    if (isPlaying) {
-      rafRef.current = requestAnimationFrame(draw);
-    }
+    rafRef.current = requestAnimationFrame(draw);
 
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       window.removeEventListener("resize", resize);
     };
-  }, [tribunaActive, isPlaying, audioRef]);
+  }, [tribunaActive]);
 
   if (!tribunaActive) return null;
 
