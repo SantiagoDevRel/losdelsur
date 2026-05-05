@@ -1,82 +1,74 @@
 // lib/use-tribuna-mode.ts
-// Hook + helpers para los toggles "Modo Tribuna". Hay dos:
+// Hook + helpers para el toggle "Modo Tribuna". Un solo bool global:
+// si está ON, el video de fondo (clips slow-mo de la barra) se muestra
+// en TODA la app y el visualizer audio-reactivo aparece en el reproductor.
+// Si está OFF, fondo humo extintor y sin visualizer.
 //
-//   • REPRODUCTOR: clips slow-mo + visualizer en /cancion/[slug] (la
-//     pantalla donde escuchás). Default ON — la inmersión está pensada
-//     para cuando estás en el reproductor.
-//   • GENERAL: clips slow-mo TAMBIÉN en home/cds/perfil/etc. Default
-//     OFF — los users que quieren eso lo activan manualmente.
-//
-// El usuario puede tener cualquier combinación. La regla efectiva
-// (qué se muestra dónde) se calcula en consumers vía useTribunaActive.
+// Default ON — la inmersión es el feature.
 
 "use client";
 
 import { useEffect, useState } from "react";
 
-const KEY_REPRODUCTOR = "lds:tribuna-reproductor";
-const KEY_GENERAL = "lds:tribuna-general";
+const KEY = "lds:tribuna-mode";
+// Keys legacy del modelo viejo (dos toggles). Migran al primer read.
+const LEGACY_REPRODUCTOR = "lds:tribuna-reproductor";
+const LEGACY_GENERAL = "lds:tribuna-general";
 const EVENT = "lds:tribuna-changed";
 
-export interface TribunaModes {
-  reproductor: boolean;
-  general: boolean;
-}
+const DEFAULT = true;
 
-const DEFAULTS: TribunaModes = {
-  reproductor: true, // inmersivo por default en el reproductor
-  general: false,    // pantallas internas limpias por default
-};
-
-function readBool(key: string, fallback: boolean): boolean {
-  if (typeof window === "undefined") return fallback;
+function readPersisted(): boolean {
+  if (typeof window === "undefined") return DEFAULT;
   try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-    return raw === "1";
+    const raw = localStorage.getItem(KEY);
+    if (raw !== null) return raw === "1";
+    // Migración: si había alguno de los toggles viejos en ON, prendemos
+    // el unificado. Sino, default.
+    const legacyR = localStorage.getItem(LEGACY_REPRODUCTOR);
+    const legacyG = localStorage.getItem(LEGACY_GENERAL);
+    if (legacyR !== null || legacyG !== null) {
+      const migrated = legacyR === "1" || legacyG === "1";
+      localStorage.setItem(KEY, migrated ? "1" : "0");
+      localStorage.removeItem(LEGACY_REPRODUCTOR);
+      localStorage.removeItem(LEGACY_GENERAL);
+      return migrated;
+    }
+    return DEFAULT;
   } catch {
-    return fallback;
+    return DEFAULT;
   }
 }
 
-function readPersisted(): TribunaModes {
-  return {
-    reproductor: readBool(KEY_REPRODUCTOR, DEFAULTS.reproductor),
-    general: readBool(KEY_GENERAL, DEFAULTS.general),
-  };
-}
-
-function writePersisted(modes: TribunaModes): void {
+function writePersisted(value: boolean): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(KEY_REPRODUCTOR, modes.reproductor ? "1" : "0");
-    localStorage.setItem(KEY_GENERAL, modes.general ? "1" : "0");
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: modes }));
+    localStorage.setItem(KEY, value ? "1" : "0");
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: value }));
   } catch {
     /* private mode / quota — no critical */
   }
 }
 
-export function useTribunaModes(): [TribunaModes, (partial: Partial<TribunaModes>) => void] {
-  // SSR/initial: defaults para que el HTML server-rendered matchee la
+export function useTribunaMode(): [boolean, (next: boolean) => void] {
+  // SSR/initial: default para que el HTML server-rendered matchee la
   // primera hidratación. El effect ajusta al valor real persistido.
-  const [modes, setModes] = useState<TribunaModes>(DEFAULTS);
+  const [value, setValue] = useState<boolean>(DEFAULT);
 
   useEffect(() => {
-    setModes(readPersisted());
+    setValue(readPersisted());
     const onChange = (e: Event) => {
-      const ce = e as CustomEvent<TribunaModes>;
-      setModes(ce.detail);
+      const ce = e as CustomEvent<boolean>;
+      setValue(ce.detail);
     };
     window.addEventListener(EVENT, onChange);
     return () => window.removeEventListener(EVENT, onChange);
   }, []);
 
-  const update = (partial: Partial<TribunaModes>) => {
-    const next = { ...modes, ...partial };
-    setModes(next);
+  const update = (next: boolean) => {
+    setValue(next);
     writePersisted(next);
   };
 
-  return [modes, update];
+  return [value, update];
 }

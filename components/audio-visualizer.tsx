@@ -21,15 +21,14 @@
 
 import { useEffect, useRef } from "react";
 import { useAudioPlayer } from "./audio-player-provider";
-import { useTribunaModes } from "@/lib/use-tribuna-mode";
+import { useTribunaMode } from "@/lib/use-tribuna-mode";
 
 const BAR_COUNT = 32;
 const VERDE_NEON = "#2BFF7F";
 
 export function AudioVisualizer() {
   const { isPlaying } = useAudioPlayer();
-  const [modes] = useTribunaModes();
-  const tribunaActive = modes.reproductor || modes.general;
+  const [tribunaActive] = useTribunaMode();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const isPlayingRef = useRef(isPlaying);

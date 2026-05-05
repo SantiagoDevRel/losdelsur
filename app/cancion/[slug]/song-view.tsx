@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, ChevronsLeft, ChevronsRight, Download, Loader2, Pause, Play, Repeat, Share2, Shuffle, Star } from "lucide-react";
+import { ArrowLeft, Check, ChevronsLeft, ChevronsRight, Download, Loader2, Pause, Play, Repeat, Share2, Shuffle, Star, Type } from "lucide-react";
 import type { CD, Cancion } from "@/lib/types";
 import { CDCover } from "@/components/cd-cover";
 import { LyricsSynced } from "@/components/lyrics-synced";
@@ -30,6 +30,7 @@ interface SongViewProps {
 const FAV_KEY = "lds:favoritas";
 const FONT_KEY = "lds:letra-size";
 const PLAYS_KEY = "lds:plays";
+const LETRA_VISIBLE_KEY = "lds:letra-visible";
 
 // Lee el mapa de plays (id -> count) desde localStorage.
 function readPlays(): Record<string, number> {
@@ -80,6 +81,7 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [fontSize, setFontSize] = useState(18);
+  const [lyricsVisible, setLyricsVisible] = useState(true);
   const [plays, setPlays] = useState(0);
 
   // Playback state viene del provider global (el audio sobrevive a
@@ -139,6 +141,8 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
     try {
       const saved = localStorage.getItem(FONT_KEY);
       if (saved) setFontSize(Math.min(30, Math.max(14, parseInt(saved, 10))));
+      const savedVis = localStorage.getItem(LETRA_VISIBLE_KEY);
+      if (savedVis !== null) setLyricsVisible(savedVis === "1");
     } catch {
       /* ignore */
     }
@@ -177,6 +181,19 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
         /* ignore */
       }
       emit("lds:font-size", { fontSize: next });
+      return next;
+    });
+  }, []);
+
+  const toggleLyricsVisible = useCallback(() => {
+    haptic("tap");
+    setLyricsVisible((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(LETRA_VISIBLE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
       return next;
     });
   }, []);
@@ -515,34 +532,50 @@ export function SongView({ cancion, cd, numero }: SongViewProps) {
             >
               A+
             </button>
+            <button
+              type="button"
+              onClick={toggleLyricsVisible}
+              aria-label={lyricsVisible ? "Ocultar letra" : "Mostrar letra"}
+              aria-pressed={!lyricsVisible}
+              className="grid size-7 place-items-center rounded-md transition-colors"
+              style={{
+                background: lyricsVisible ? "rgba(255,255,255,0.1)" : "rgba(43,255,127,0.15)",
+                color: lyricsVisible ? "#fff" : "var(--color-verde-neon)",
+              }}
+            >
+              <Type size={14} strokeWidth={2.4} />
+            </button>
           </div>
         </div>
 
         {/* Letra: si hay sincronización (letra.lrc), modo karaoke;
-            si no, la letra estática tal cual. */}
-        <div className="px-6 pb-10 pt-1">
-          {cancion.letra_timed && cancion.letra_timed.length > 0 ? (
-            <LyricsSynced
-              currentTime={currentTime}
-              onSeek={seek}
-              lines={cancion.letra_timed}
-              fontSize={fontSize}
-            />
-          ) : (
-            <pre
-              className="whitespace-pre-wrap uppercase text-white/95"
-              style={{
-                fontFamily: "var(--font-body)",
-                fontWeight: 600,
-                fontSize,
-                lineHeight: 1.55,
-                letterSpacing: "0.01em",
-              }}
-            >
-              {cancion.letra}
-            </pre>
-          )}
-        </div>
+            si no, la letra estática tal cual. Ocultable para ver el
+            video de fondo limpio. */}
+        {lyricsVisible && (
+          <div className="px-6 pb-10 pt-1">
+            {cancion.letra_timed && cancion.letra_timed.length > 0 ? (
+              <LyricsSynced
+                currentTime={currentTime}
+                onSeek={seek}
+                lines={cancion.letra_timed}
+                fontSize={fontSize}
+              />
+            ) : (
+              <pre
+                className="whitespace-pre-wrap uppercase text-white/95"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontWeight: 600,
+                  fontSize,
+                  lineHeight: 1.55,
+                  letterSpacing: "0.01em",
+                }}
+              >
+                {cancion.letra}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
 
       {/* El <audio> vive en el AudioPlayerProvider (root layout). */}

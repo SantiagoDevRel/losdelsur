@@ -29,7 +29,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import { useTribunaModes } from "@/lib/use-tribuna-mode";
+import { useTribunaMode } from "@/lib/use-tribuna-mode";
 import { CacheManager } from "@/components/cache-manager";
 import { CreditsFooter } from "@/components/credits-footer";
 import { InstallCard } from "@/components/install-card";
@@ -286,16 +286,6 @@ function LoggedInView() {
           <Footprints size={11} />
           PASAPORTE VERDE
         </div>
-        <h3
-          className="mt-1 uppercase text-white"
-          style={{
-            fontFamily: "var(--font-display), Anton, sans-serif",
-            fontSize: 22,
-            lineHeight: 1,
-          }}
-        >
-          DONDE VISTE AL VERDE
-        </h3>
 
         <div className="mt-4">
           <PasaporteMapa ciudadesVisitadas={ciudadesVisitadas} />
@@ -315,10 +305,6 @@ function LoggedInView() {
         >
           ¿CÓMO SUMÁS?
         </h3>
-        <p className="mt-2 text-[11px] font-medium uppercase leading-snug tracking-[0.04em] text-white/50">
-          Mostrale tu QR a un capo de combo o admin de la barra. Te suma
-          puntos por la actividad. Después se canjean en rifas.
-        </p>
 
         <ul className="mt-4 space-y-2">
           <PuntoItem nombre="Partido en el Atanasio" puntos={10} />
@@ -431,97 +417,50 @@ function PuntoItem({
 }
 
 function PreferencesSection() {
-  const [modes, setModes] = useTribunaModes();
+  const [tribunaOn, setTribunaOn] = useTribunaMode();
   return (
     <section className="mx-5 my-5 rounded-xl border-2 border-white/10 bg-[#0a0a0a] p-5">
       <div className="eyebrow flex items-center gap-1.5 text-[var(--color-verde-neon)]">
         <Film size={11} />
         PREFERENCIAS
       </div>
-      <h3
-        className="mt-1 uppercase text-white"
+      <button
+        type="button"
+        onClick={() => setTribunaOn(!tribunaOn)}
+        aria-pressed={tribunaOn}
+        className="mt-3 flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors hover:border-white/30"
         style={{
-          fontFamily: "var(--font-display), Anton, sans-serif",
-          fontSize: 22,
-          lineHeight: 1,
+          background: tribunaOn ? "rgba(43,255,127,0.08)" : "transparent",
+          borderColor: tribunaOn ? "var(--color-verde-neon)" : "rgba(255,255,255,0.15)",
         }}
       >
-        MODO TRIBUNA
-      </h3>
-      <p className="mt-2 text-[12px] font-medium uppercase leading-snug tracking-[0.04em] text-white/65">
-        Clips slow-mo de la barra: banderas, bengalas, gente saltando.
-        Reemplazan el humo extintor de fondo + activan el visualizer
-        audio-reactivo en el reproductor.
-      </p>
-
-      <TribunaToggle
-        label="EN EL REPRODUCTOR"
-        sub="Solo cuando estás escuchando una canción (inmersivo)."
-        value={modes.reproductor}
-        onChange={(v) => setModes({ reproductor: v })}
-      />
-
-      <TribunaToggle
-        label="EN TODA LA APP"
-        sub="También en home, CDs, perfil, etc. Consume más batería."
-        value={modes.general}
-        onChange={(v) => setModes({ general: v })}
-      />
-    </section>
-  );
-}
-
-function TribunaToggle({
-  label,
-  sub,
-  value,
-  onChange,
-}: {
-  label: string;
-  sub: string;
-  value: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!value)}
-      aria-pressed={value}
-      className="mt-3 flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition-colors hover:border-white/30"
-      style={{
-        background: value ? "rgba(43,255,127,0.08)" : "transparent",
-        borderColor: value ? "var(--color-verde-neon)" : "rgba(255,255,255,0.15)",
-      }}
-    >
-      <div className="min-w-0 flex-1">
         <div
-          className="text-[12px] font-extrabold uppercase tracking-[0.08em]"
-          style={{ color: value ? "var(--color-verde-neon)" : "rgba(255,255,255,0.85)" }}
-        >
-          {label}
-        </div>
-        <div className="mt-0.5 text-[10px] font-medium uppercase leading-snug tracking-[0.04em] text-white/50">
-          {sub}
-        </div>
-      </div>
-      {/* Switch visual: track + thumb */}
-      <span
-        aria-hidden
-        className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
-        style={{
-          background: value ? "var(--color-verde-neon)" : "rgba(255,255,255,0.15)",
-        }}
-      >
-        <span
-          className="absolute top-0.5 size-5 rounded-full bg-white transition-transform"
+          className="min-w-0 flex-1 text-[14px] font-extrabold uppercase tracking-[0.06em]"
           style={{
-            left: 2,
-            transform: value ? "translateX(20px)" : "translateX(0)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+            fontFamily: "var(--font-display), Anton, sans-serif",
+            color: tribunaOn ? "var(--color-verde-neon)" : "rgba(255,255,255,0.9)",
           }}
-        />
-      </span>
-    </button>
+        >
+          MODO TRIBUNA
+        </div>
+        <span
+          aria-hidden
+          className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+          style={{
+            background: tribunaOn ? "var(--color-verde-neon)" : "rgba(255,255,255,0.15)",
+          }}
+        >
+          <span
+            className="absolute top-0.5 size-5 rounded-full bg-white transition-transform"
+            style={{
+              left: 2,
+              transform: tribunaOn ? "translateX(20px)" : "translateX(0)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+            }}
+          />
+        </span>
+      </button>
+    </section>
   );
 }
 
