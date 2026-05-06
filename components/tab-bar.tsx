@@ -13,11 +13,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Disc3, Search, Camera, User } from "lucide-react";
+import { Home, Store, Search, Camera, User } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useSearchModal } from "./search-modal-provider";
 
-type TabKey = "home" | "cds" | "search" | "tribuna" | "perfil";
+type TabKey = "home" | "marketplace" | "search" | "tribuna" | "perfil";
 
 interface Tab {
   key: TabKey;
@@ -29,7 +29,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { key: "home", href: "/", label: "Inicio", Icon: Home, matches: (p) => p === "/" },
-  { key: "cds", href: "/cds", label: "CDs", Icon: Disc3, matches: (p) => p.startsWith("/cds") || p.startsWith("/cancion") || p.startsWith("/library") },
+  { key: "marketplace", href: "/marketplace", label: "Market", Icon: Store, matches: (p) => p.startsWith("/marketplace") },
   { key: "search", href: "/search", label: "Buscar", Icon: Search, matches: (p) => p.startsWith("/search") },
   { key: "tribuna", href: "/tribuna", label: "Tribuna", Icon: Camera, matches: (p) => p.startsWith("/tribuna") },
   { key: "perfil", href: "/perfil", label: "Perfil", Icon: User, matches: (p) => p.startsWith("/perfil") || p.startsWith("/login") },
@@ -59,11 +59,7 @@ export function TabBar() {
           const tabBody = (
             <>
               <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
-              {/* "CDs" queda con la "s" en minúscula; el resto de
-                  labels se verían igual en mayúsculas de todas formas. */}
-              <span style={label === "CDs" ? { textTransform: "none" } : undefined}>
-                {label}
-              </span>
+              <span>{label}</span>
             </>
           );
           const commonClass =
