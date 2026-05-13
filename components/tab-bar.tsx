@@ -29,7 +29,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { key: "home", href: "/", label: "Inicio", Icon: Home, matches: (p) => p === "/" },
-  { key: "marketplace", href: "/marketplace", label: "Market", Icon: Store, matches: (p) => p.startsWith("/marketplace") },
+  { key: "marketplace", href: "/marketplace", label: "Ecosistema", Icon: Store, matches: (p) => p.startsWith("/marketplace") },
   { key: "search", href: "/search", label: "Buscar", Icon: Search, matches: (p) => p.startsWith("/search") },
   { key: "tribuna", href: "/tribuna", label: "Tribuna", Icon: Camera, matches: (p) => p.startsWith("/tribuna") },
   { key: "perfil", href: "/perfil", label: "Perfil", Icon: User, matches: (p) => p.startsWith("/perfil") || p.startsWith("/login") },
