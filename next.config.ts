@@ -67,6 +67,15 @@ const nextConfig: NextConfig = {
       "content/**/*.xlsx",
     ],
   },
+  // Image Optimization: las covers/arte casi nunca cambian (y cuando
+  // cambian, cambia el path por el cache-buster). Un TTL de cache largo
+  // evita que Vercel re-transforme la MISMA imagen una y otra vez —
+  // cada transformación única cuenta contra el free tier (5K/mes).
+  // 31 días: se transforma una vez por (src, width, quality) y se sirve
+  // desde el cache el resto del mes.
+  images: {
+    minimumCacheTTL: 60 * 60 * 24 * 31,
+  },
 };
 
 export default withSerwist(nextConfig);

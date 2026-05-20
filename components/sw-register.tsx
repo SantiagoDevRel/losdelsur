@@ -104,12 +104,15 @@ export function ServiceWorkerRegister() {
           navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
         };
 
-        // Polling: cada 60s chequear si hay update. Útil para PWAs
+        // Polling: cada 30 min chequear si hay update. Útil para PWAs
         // que el user deja abiertas mucho tiempo (ej: dejó la app
         // mientras escucha música, deployamos un fix, queremos avisar).
+        // Antes era 60s: re-bajaba el SW + precache manifest cada minuto
+        // por pestaña abierta → quemaba Edge Requests y Data Transfer de
+        // Vercel sin beneficio real (un update cada 30 min es de sobra).
         const interval = window.setInterval(() => {
           reg.update().catch(() => {});
-        }, 60_000);
+        }, 30 * 60_000);
         const prevCleanup = cleanup;
         cleanup = () => {
           prevCleanup?.();

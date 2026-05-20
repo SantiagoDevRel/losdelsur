@@ -237,15 +237,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
-  // Heartbeat: cada 2 min preguntamos si nuestra sesión sigue válida.
+  // Heartbeat: cada 5 min preguntamos si nuestra sesión sigue válida.
   // Si otro device nos kickeó (replace en user_sessions) → /api/sessions/heartbeat
   // devuelve {valid:false} → forzamos signOut local + redirect a login.
+  //
+  // Gating por visibilidad: no chequeamos en pestañas ocultas/background
+  // (PWA dejada abierta), pero SÍ chequeamos al volver a la pestaña — así
+  // si te kickearon mientras estabas afuera, te enterás al volver. La
+  // lógica de single-device se mantiene intacta: detectar el kick unos
+  // minutos después no afecta la seguridad (el otro device ya tiene la
+  // sesión activa; este solo necesita salir cuando el user lo vuelve a usar).
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 
     async function check() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       try {
         const res = await fetch("/api/sessions/heartbeat", { cache: "no-store" });
         if (!res.ok) return;
@@ -264,12 +274,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    function onVisible() {
+      if (document.visibilityState === "visible") void check();
+    }
+
     void check();
-    timer = setInterval(check, 2 * 60 * 1000);
+    timer = setInterval(check, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [user, supabase]);
 

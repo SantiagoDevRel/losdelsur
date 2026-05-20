@@ -31,7 +31,11 @@ interface TwilioUsage {
   error?: string;
 }
 
-const POLL_INTERVAL_MS = 10_000;
+// 30s (antes 10s) + gating por visibilidad: solo polleamos cuando la
+// pestaña está visible. Una pestaña admin olvidada en background dejaba
+// de quemar CPU de Vercel (6 queries Supabase por tick). Al volver a la
+// pestaña hacemos un refresh inmediato para no mostrar data vieja.
+const POLL_INTERVAL_MS = 30_000;
 
 export function DashboardView({ initial }: { initial: Stats }) {
   const [stats, setStats] = useState<Stats>(initial);
@@ -42,6 +46,11 @@ export function DashboardView({ initial }: { initial: Stats }) {
   useEffect(() => {
     let cancelled = false;
     async function refresh() {
+      // No pollear si la pestaña está oculta: evita quemar CPU de Vercel
+      // en pestañas admin dejadas abiertas en background.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       setRefreshing(true);
       try {
         const res = await fetch("/api/admin/stats", { cache: "no-store" });
@@ -54,10 +63,16 @@ export function DashboardView({ initial }: { initial: Stats }) {
         if (!cancelled) setRefreshing(false);
       }
     }
+    // Al volver a la pestaña, refresh inmediato (no esperamos al próximo tick).
+    function onVisible() {
+      if (document.visibilityState === "visible") void refresh();
+    }
     const id = setInterval(refresh, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -65,6 +80,9 @@ export function DashboardView({ initial }: { initial: Stats }) {
   useEffect(() => {
     let cancelled = false;
     async function loadTwilio() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       try {
         const res = await fetch("/api/admin/twilio-usage", { cache: "no-store" });
         if (!res.ok) return;
